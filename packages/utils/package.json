@@ -1,0 +1,14 @@
+{
+  "name": "@asmv/utils",
+  "version": "0.0.1",
+  "description": "Utility library for the JS implementation of the ASIMOV protocol (Asynchronous Service Interaction Messaging OVerlay).",
+  "type": "commonjs",
+  "license": "Apache-2.0",
+  "contributors": [
+    {
+      "name": "Jiri Hybek",
+      "email": "jiri@hybek.cz",
+      "url": "https://jiri.hybek.cz"
+    }
+  ]
+}

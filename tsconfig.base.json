@@ -7,6 +7,7 @@
     "moduleResolution": "node",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "strictNullChecks": true,
     "importHelpers": true,
     "target": "es2015",
     "module": "esnext",
@@ -14,7 +15,12 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
-    "paths": {}
+    "paths": {
+      "@asmv/core": ["packages/core/src/index.ts"],
+      "@asmv/koa": ["packages/koa/src/index.ts"],
+      "@asmv/transport-http": ["packages/transport-http/src/index.ts"],
+      "@asmv/utils": ["packages/utils/src/index.ts"]
+    }
   },
   "exclude": ["node_modules", "tmp"]
 }

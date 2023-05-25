@@ -1,0 +1,165 @@
+{
+    "serviceName": "ai.mydomain.image",
+    "version": "1.0.0",
+    "baseUri": "https://services.mydomain.ai/image",
+    "defaultLanguage": "en",
+    "description": [
+        {
+            "lang": "en",
+            "title": "Image functions",
+            "description": "Common image functions to resize, rotate and crop images."
+        }
+    ],
+    "setup": {
+        "configProfiles": [
+            {
+                "name": "serviceAccount",
+                "setupUri": "/setup/serviceAccount",
+                "scope": "organization",
+                "description": [
+                    {
+                        "lang": "en",
+                        "label": "Service Account"
+                    }
+                ]
+            },
+            {
+                "name": "userSSO",
+                "setupUri": "/setup/user_sso",
+                "scope": "user",
+                "description": [
+                    {
+                        "lang": "en",
+                        "label": "Connect to your account"
+                    }
+                ]
+            }
+        ],
+        "termsAndConditions": [
+            {
+                "name": "termsAndConditions",
+                "description": [
+                    {
+                        "lang": "en",
+                        "label": "Terms and Conditions",
+                        "url": "/terms-and-conditions"
+                    }
+                ],
+                "acceptanceRequired": true,
+                "scope": "organization",
+                "lastModified": "2023-01-01T00:00:00.000Z"
+            },
+            {
+                "name": "privacyPolicy",
+                "description": [
+                    {
+                        "lang": "en",
+                        "label": "GDPR Privacy Policy",
+                        "url": "/privacy-policy"
+                    }
+                ],
+                "acceptanceRequired": true,
+                "scope": "user",
+                "lastModified": "2023-01-01T00:00:00.000Z"
+            }
+        ]
+    },
+    "acceptedPaymentSchemas": [
+        {
+            "schemaName": "paypal+jwt",
+            "options": {
+                "recipient": "user@example.com"
+            }
+        },
+        {
+            "schemaName": "lightning.network"
+        }
+    ],
+    "commands": [
+        {
+            "commandName": "resize",
+            "endpointUri": "/command/resize",
+            "description": [
+                {
+                    "lang": "en",
+                    "title": "Resize image",
+                    "humanDescription": "Resizes an image to specified dimensions.",
+                    "developerDescription": "Downloads image from the given URL, resizes it and returns a signed URL of the resized image.",
+                    "aiDescription": "Resizes an image to with and height dimensions specified in pixels."
+                }
+            ],
+            "requiredConfigProfiles": [
+                "serviceAccount",
+                "userSSO"
+            ],
+            "requiresUserConfirmation": false,
+            "inputs": [
+                {
+                    "name": "imageUrl",
+                    "description": [
+                        {
+                            "lang": "en",
+                            "title": "Image URL",
+                            "humanDescription": "URL of the image to resize.",
+                            "aiDescription": "URL of the image to resize. Use the file the user uploaded to your service or ask him to do it."
+                        }
+                    ],
+                    "schema": {
+                        "type": "string",
+                        "format": "url"
+                    }
+                },
+                {
+                    "name": "width",
+                    "description": [
+                        {
+                            "lang": "en",
+                            "title": "Width",
+                            "humanDescription": "Width of the resized image in pixels."
+                        }
+                    ],
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                {
+                    "name": "height",
+                    "description": [
+                        {
+                            "lang": "en",
+                            "title": "Height",
+                            "humanDescription": "Height of the resized image in pixels."
+                        }
+                    ],
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                }
+            ],
+            "output": {
+                "description": [
+                    {
+                        "lang": "en",
+                        "title": "Resized image URL",
+                        "humanDescription": "URL of the resized image.",
+                        "aiDescription": "URL of the resized image. The URL is signed and can be used to download the image within 1 minute."
+                    }
+                ],
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "imageUrl": {
+                            "type": "string",
+                            "format": "url"
+                        }
+                    },
+                    "required": [
+                        "imageUrl"
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -1,22 +1,20 @@
-# asmv-js
+# @asmv/utils
 
-A JavaScript implementation of the ASIMOV protocol (Asynchronous Service Interaction Messaging OVerlay).
+Utility library for the JavaScript implementation of the ASIMOV protocol (Agent to Service Interaction Messaging OVerlay).
 
-See the individual packages for the documentation:
-
-- [@asmv/core](./packages/core/README.md)
-- [@asmv/transport-http](./packages/transport-http/README.md)
-- [@asmv/utils](./packages/utils/README.md)
+This library is not supposed to be used directly, but is a shared dependency for the other `@asmv` packages.
 
 ## Development
 
-This is a monorepo managed by the [Nx](https://nx.dev/).
+This library was generated with [Nx](https://nx.dev) and is a part of the `asmv-js` monorepo.
 
-**How to add package?**
+### Building
 
-```bash
-npx nx generate @nrwl/js:library <package> --bundler=tsc --publishable --importPath @asmv/<package>
-```
+Run `nx build core` to build the library.
+
+### Running unit tests
+
+Run `nx test core` to execute the unit tests via [Jest](https://jestjs.io).
 
 ## License
 
