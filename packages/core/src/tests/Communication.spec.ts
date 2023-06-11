@@ -4,8 +4,8 @@
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
-import { ClientContext } from "../lib/ClientContext";
-import { ServiceContext, } from "../lib/ServiceContext/ServiceContext";
+import { ClientContext } from "../lib/Contexts/ClientContext";
+import { ServiceContext, } from "../lib/Contexts/ServiceContext";
 import { MessageType, Message, RequestPayment, RequestUserConfirmation } from "../lib/Messages/MessageTypes";
 import { onEvent, waitMsAsync } from "@asmv/utils";
 import { CommandDefinition } from "../lib/Definitions/CommandDefinition";

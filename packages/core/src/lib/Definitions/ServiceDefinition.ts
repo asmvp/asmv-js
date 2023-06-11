@@ -4,6 +4,7 @@
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
+import semver from "semver";
 import { AcceptedPaymentSchemaDescriptor, CommandMap, LanguageDescription, ServiceManifest, SetupDescriptor, TermsAndConditionsDescriptor } from "../Manifest/ManifestTypes";
 import { CommandDefinition } from "./CommandDefinition";
 import { ConfigProfileDefinition } from "./ConfigProfileDefinition";
@@ -57,6 +58,11 @@ export class ServiceDefinition {
         this.description = opts.description;
         this.termsAndConditions = opts.setup?.termsAndConditions ?? [];
         this.acceptedPaymentSchemas = opts.acceptedPaymentSchemas ?? [];
+
+        // Check version
+        if (!semver.valid(this.version)) {
+            throw new Error(`Service version '${this.version}' is not a valid semver string.`);
+        }
 
         for (const profile of opts.setup?.configProfiles ?? []) {
             this.addConfigProfile(profile);

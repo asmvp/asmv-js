@@ -5,7 +5,6 @@ A JavaScript implementation of the ASIMOV protocol (Asynchronous Service Interac
 See the individual packages for the documentation:
 
 - [@asmv/core](./packages/core/README.md)
-- [@asmv/transport-http](./packages/transport-http/README.md)
 - [@asmv/utils](./packages/utils/README.md)
 
 ## Development

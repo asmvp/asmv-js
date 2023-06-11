@@ -6,7 +6,6 @@ This library is supposed to be used as a base for the custom client or service i
 
 For ready-to-use implementations, see the following packages:
 
-- [@asmv/transport-http](#todo) HTTP overlay package, can be used to implement custom HTTP agents and services.
 - [@asmv/koa](#todo) Koa framework middlewares to implement both agent and service.
 
 ## Overview
@@ -15,6 +14,7 @@ The library contains:
 
 - Service manifest definition types and JSON (ajv) schemas
 - Message definition types and JSON (ajv) schemas
+- HTTP extension definition types (no implementation, types only)
 - Client context - usefull for the client implementations
 - Service context - usefull for the service implementations of a command executor
 - Utility functions for async operations
