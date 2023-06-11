@@ -5,16 +5,17 @@
  */
 
 import { ClientContext } from "../lib/ClientContext";
-import { ServiceContext, } from "../lib/ServiceContext";
+import { ServiceContext, } from "../lib/ServiceContext/ServiceContext";
 import { MessageType, Message, RequestPayment, RequestUserConfirmation } from "../lib/Messages/MessageTypes";
 import { onEvent, waitMsAsync } from "@asmv/utils";
+import { CommandDefinition } from "../lib/Definitions/CommandDefinition";
 
 type Channel = string;
-type ConfigProfiles = Record<string, never>;
 
 function setupDialogue<State extends object>(
+    commandDefinition: CommandDefinition,
     channel: Channel,
-    serviceFn: (ctx: ServiceContext<Channel, ConfigProfiles, State>) => Promise<void>,
+    serviceFn: (ctx: ServiceContext<Channel, State>) => Promise<void>,
     clientFn: (ctx: ClientContext<Channel>) => Promise<void>,
     options?: {
         logMessages: boolean
@@ -24,17 +25,34 @@ function setupDialogue<State extends object>(
         return serviceCtx.handleIncomingMessage(message);
     }, channel);
 
-    const serviceCtx: ServiceContext<Channel, ConfigProfiles, State> = new ServiceContext(async (_: string, message: Message) => {
-        return clientCtx.handleIncomingMessage(message);
-    }, channel, {});
+    const serviceCtx: ServiceContext<Channel, State> = new ServiceContext(
+        async (_: string, message: Message) => {
+            return clientCtx.handleIncomingMessage(message);
+        },
+        {},
+        commandDefinition,
+        channel
+    );
 
     const runWithClientFirst = () => {
+        serviceCtx.handleIncomingMessage({
+            messageType: MessageType.Invoke,
+            configProfiles: {},
+            inputs: []
+        });
+
         const clientPromise = clientFn(clientCtx);
         const servicePromise = serviceFn(serviceCtx);
         return Promise.all([clientPromise, servicePromise]);
     };
 
     const runWithServiceFirst = () => {
+        serviceCtx.handleIncomingMessage({
+            messageType: MessageType.Invoke,
+            configProfiles: {},
+            inputs: []
+        });
+
         const servicePromise = serviceFn(serviceCtx);
         const clientPromise = clientFn(clientCtx);
         return Promise.all([servicePromise, clientPromise]);
@@ -53,24 +71,49 @@ function setupDialogue<State extends object>(
     }
 }
 
+const TestCommand = new CommandDefinition({
+    name: "test",
+    description: [],
+});
+
+TestCommand.addInputType<string>("name", {
+    description: [],
+    required: true,
+    schema: {
+        type: "string"
+    },
+});
+
+TestCommand.addOutputType<string>("Greetings", {
+    description: [],
+    schema: {
+        type: "string"
+    },
+});
+
+TestCommand.addOutputType<string>("text", {
+    description: [],
+    schema: {
+        type: "string"
+    },
+});
+
 describe("Action Handler / Client", () => {
     it("Should invoke a simple service call with client going first", async () => {
         const { service, runWithClientFirst } = setupDialogue<{ name: string }>(
+            TestCommand,
             "test",
             async (ctx) => {
-                const [ name ] = await ctx.getInputs([{
-                    name: "name",
-                    description: []
-                }]);
+                const [ name ] = await ctx.getInputs<string>("name");
 
-                ctx.state.name = name.value as string;
+                ctx.state.name = name;
 
-                ctx.returnData(`Hello, ${ctx.state.name}!`, "Greetings");
+                ctx.returnData("Greetings", `Hello, ${ctx.state.name}!`);
                 await ctx.finish();   
             },
             async (ctx) => {
                 await ctx.provideInputs([{
-                    name: "name",
+                    inputType: "name",
                     value: "John"
                 }]);
 
@@ -90,23 +133,21 @@ describe("Action Handler / Client", () => {
 
     it("Should invoke a simple service call with server going first and requesting missing args", async () => {
         const { service, runWithServiceFirst } = setupDialogue<{ name: string }>(
+            TestCommand,
             "test",
             async (ctx) => {
-                const [ name ] = await ctx.getInputs([{
-                    name: "name",
-                    description: []
-                }]);
+                const [ name ] = await ctx.getInputs<string>("name");
 
-                ctx.state.name = name.value as string;
+                ctx.state.name = name;
 
-                ctx.returnData(`Hello, ${ctx.state.name}!`, "Greetings");
+                ctx.returnData("Greetings", `Hello, ${ctx.state.name}!`);
                 await ctx.finish();   
             },
             async (ctx) => {
                 for await (const msg of ctx.getMessages()) {
                     if (msg.messageType === MessageType.RequestInput) {
                         await ctx.provideInputs([{
-                            name: "name",
+                            inputType: "name",
                             value: "John"
                         }]);
                     }
@@ -130,6 +171,7 @@ describe("Action Handler / Client", () => {
 
     it("Client should cancel running process", async () => {
         const { runWithServiceFirst } = setupDialogue<{ name: string }>(
+            TestCommand,
             "test",
             async (ctx) => {
                 await waitMsAsync(100);
@@ -145,10 +187,11 @@ describe("Action Handler / Client", () => {
 
     it("Should request and provide user confirmation", async () => {
         const { runWithServiceFirst } = setupDialogue<{ name: string }>(
+            TestCommand,
             "test",
             async (ctx) => {
                 await ctx.requestUserConfirmation("Test");
-                ctx.returnData("Hello, world!", "Greetings");
+                ctx.returnData("Greetings", "Hello, world!");
                 await ctx.finish();
             },
             async (ctx) => {
@@ -165,8 +208,9 @@ describe("Action Handler / Client", () => {
         await runWithServiceFirst();
     });
 
-    it.only("Should request and authorize payment", async () => {
+    it("Should request and authorize payment", async () => {
         const { runWithServiceFirst } = setupDialogue<{ name: string }>(
+            TestCommand,
             "test",
             async (ctx) => {
                 ctx.acceptedPaymentSchemas = [ "test+jwt", "test+ledger" ];
@@ -183,7 +227,7 @@ describe("Action Handler / Client", () => {
                 expect(paymentAuth.paymentId).toBe("abc123");
                 expect(paymentAuth.token).toBe("token");
 
-                ctx.returnData("type/text", "Ok");
+                ctx.returnData("text", "Ok");
                 await ctx.finish();
             },
             async (ctx) => {

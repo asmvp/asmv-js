@@ -5,7 +5,7 @@
  */
 
 import { TSerializableData } from "@asmv/utils";
-import { ServiceContextSerializedState } from "./ServiceContext";
+import { ServiceContextSerializedState } from "./ServiceContext/ServiceContext";
 
 export interface ServiceContextStoreEntry {
     channel: TSerializableData;

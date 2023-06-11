@@ -26,14 +26,9 @@ function LanguageDescription<Props extends Record<string, unknown>>(props: JSONS
     }
 }
 
-export const CommandInputDescriptor: JSONSchemaType<Manifest.CommandInputDescriptor> = {
+export const CommandInputDescriptor: JSONSchemaType<Manifest.CommandInputTypeDescriptor<unknown>> = {
     type: "object",
     properties: {
-        name: {
-            type: "string",
-            title: "Input Name",
-            examples: ["firstName", "lastName"]
-        },
         description: LanguageDescription({
             type: "object",
             properties: {
@@ -86,15 +81,20 @@ export const CommandInputDescriptor: JSONSchemaType<Manifest.CommandInputDescrip
             nullable: true
         }
     },
-    required: ["name"]
-} as JSONSchemaType<Manifest.CommandInputDescriptor>;
+    required: ["description"]
+}
 
-export const CommandOutputDescriptor: JSONSchemaType<Manifest.CommandOutputDescriptor> = {
+export const CommandOutputDescriptor: JSONSchemaType<Manifest.CommandOutputTypeDescriptor<unknown>> = {
     type: "object",
     properties: {
         description: LanguageDescription({
             type: "object",
             properties: {
+                title: {
+                    type: "string",
+                    title: "Output Title",
+                    examples: ["Documents", "Weather"],
+                },
                 humanDescription: {
                     type: "string",
                     title: "Human Description",
@@ -116,7 +116,8 @@ export const CommandOutputDescriptor: JSONSchemaType<Manifest.CommandOutputDescr
                     nullable: true,
                     examples: ["Current weather in a JSON. Format it for the user."]
                 }
-            }
+            },
+            required: [ "title" ]
         }),
         schema: {
             type: "object",
@@ -125,18 +126,13 @@ export const CommandOutputDescriptor: JSONSchemaType<Manifest.CommandOutputDescr
             nullable: true,
             additionalProperties: true
         }
-    }
-} as JSONSchemaType<Manifest.CommandOutputDescriptor>;
+    },
+    required: [ "description" ]
+};
 
 export const CommandDescriptor: JSONSchemaType<Manifest.CommandDescriptor> = {
     type: "object",
     properties: {
-        commandName: {
-            type: "string",
-            title: "Command Name",
-            description: "Name of the command. Must be unique within the service.",
-            examples: ["customers.open", "weather.get", "CropImage", "searchWeb"]
-        },
         description: LanguageDescription({
             type: "object",
             properties: {
@@ -191,27 +187,27 @@ export const CommandDescriptor: JSONSchemaType<Manifest.CommandDescriptor> = {
             description: "Indicates whether the command requires user confirmation before it can be executed. Other confirmations can be still required during the command execution.",
             nullable: true
         },
-        inputs: {
-            type: "array",
-            title: "Inputs",
-            description: "List of command inputs.",
-            items: CommandInputDescriptor,
-            nullable: true
+        inputTypes: {
+            type: "object",
+            title: "Input Types",
+            description: "Map of input types that are expected by the command. The key is the input name and the value is the input type descriptor.",
+            additionalProperties: CommandInputDescriptor,
+            required: []
         },
-        output: CommandOutputDescriptor,
+        outputTypes: {
+            type: "object",
+            title: "Output Types",
+            description: "Map of output types that are returned by the command. The key is the output name and the value is the output type descriptor.",
+            additionalProperties: CommandOutputDescriptor,
+            required: []
+        }
     },
-    required: ["commandName", "description", "endpointUri"]
-} as JSONSchemaType<Manifest.CommandDescriptor>;
+    required: ["description", "endpointUri", "inputTypes", "outputTypes"]
+};
 
-export const ConfigProfileDescriptor: JSONSchemaType<Manifest.ConfigProfileDescriptor> = {
+export const ConfigProfileDescriptor: JSONSchemaType<Manifest.ConfigProfileDescriptor<unknown>> = {
     type: "object",
     properties: {
-        name: {
-            type: "string",
-            title: "Profile Name",
-            description: "Name of the config profile. Must be unique within the service.",
-            examples: ["oauth", "openid", "sso", "github", "user"]
-        },
         setupUri: {
             type: "string",
             title: "Setup URI",
@@ -235,7 +231,7 @@ export const ConfigProfileDescriptor: JSONSchemaType<Manifest.ConfigProfileDescr
                     examples: ["Login via GitHub", "Configure your account", "OpenID Connect", "Connect your CRM"]
                 }
             },
-            required: ["label"]
+            required: ["label"],
         }),
         schema: {
             type: "object",
@@ -245,8 +241,8 @@ export const ConfigProfileDescriptor: JSONSchemaType<Manifest.ConfigProfileDescr
             additionalProperties: true
         }
     },
-    required: ["name", "setupUri", "scope"]
-} as JSONSchemaType<Manifest.ConfigProfileDescriptor>;
+    required: ["setupUri", "scope", "description"]
+};
 
 export const TermsAndConditionsDescriptor: JSONSchemaType<Manifest.TermsAndConditionsDescriptor> = {
     type: "object",
@@ -300,11 +296,12 @@ export const SetupDescriptor: JSONSchemaType<Manifest.SetupDescriptor> = {
     type: "object",
     properties: {
         configProfiles: {
-            type: "array",
+            type: "object",
             title: "Configuration Profiles",
             description: "List of configuration profile definitions that can be required by commands.",
-            items: ConfigProfileDescriptor,
-            nullable: true
+            additionalProperties: ConfigProfileDescriptor,
+            nullable: true,
+            required: []
         },
         termsAndConditions: {
             type: "array",
@@ -315,7 +312,7 @@ export const SetupDescriptor: JSONSchemaType<Manifest.SetupDescriptor> = {
         }
     },
     nullable: true
-} as JSONSchemaType<Manifest.SetupDescriptor>;
+};
 
 export const AcceptedPaymentSchemaDescriptor: JSONSchemaType<Manifest.AcceptedPaymentSchemaDescriptor> = {
     type: "object",
@@ -340,6 +337,12 @@ export const AcceptedPaymentSchemaDescriptor: JSONSchemaType<Manifest.AcceptedPa
 export const ServiceManifest: JSONSchemaType<Manifest.ServiceManifest> = {
     type: "object",
     properties: {
+        "@asmv": {
+            type: "string",
+            title: "Manifest Version",
+            description: "Version of the manifest specification.",
+            examples: ["1.0.0"]
+        },
         serviceName: {
             type: "string",
             title: "Service Name",
@@ -395,12 +398,16 @@ export const ServiceManifest: JSONSchemaType<Manifest.ServiceManifest> = {
             },
             required: ["title"]
         }),
-        setup: SetupDescriptor,
+        setup: {
+            ...SetupDescriptor,
+            nullable: true
+        },
         commands: {
-            type: "array",
+            type: "object",
             title: "Commands",
             description: "List of commands that the service provides.",
-            items: CommandDescriptor
+            additionalProperties: CommandDescriptor,
+            required: []
         },
         acceptedPaymentSchemas: {
             type: "array",
@@ -410,5 +417,5 @@ export const ServiceManifest: JSONSchemaType<Manifest.ServiceManifest> = {
             nullable: true
         }
     },
-    required: ["serviceName", "version", "baseUri", "defaultLanguage", "commands"]
-} as JSONSchemaType<Manifest.ServiceManifest>;
+    required: [ "@asmv", "serviceName", "version", "baseUri", "defaultLanguage", "commands"]
+}

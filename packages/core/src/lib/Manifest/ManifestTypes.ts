@@ -42,8 +42,8 @@ export interface CommandInputTypeDescriptor<InputType>  {
  * Descriptor of a command output
  */
 export interface CommandOutputTypeDescriptor<OutputType> {
-    readonly description?: LanguageDescription<{
-        readonly title?: string;
+    readonly description: LanguageDescription<{
+        readonly title: string;
         readonly humanDescription?: string;
         readonly developerDescription?: string;
         readonly aiDescription?: string;
@@ -52,43 +52,23 @@ export interface CommandOutputTypeDescriptor<OutputType> {
 }
 
 /**
- * Command input types (base type)
- */
-export type CommandInputTypes = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    readonly [key: string]: any;
-}
-
-/**
- * Command output types (base type)
- */
-export type CommandOutputTypes = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    readonly [key: string]: any;
-}
-
-/**
  * Map of command input descriptors
  */
-export type CommandInputTypeDescriptorMap<InputTypes extends CommandInputTypes> = {
-    readonly [K in keyof InputTypes]: CommandInputTypeDescriptor<InputTypes[K]>;
+export type CommandInputTypeDescriptorMap = {
+    readonly [K: string]: CommandInputTypeDescriptor<unknown>;
 }
 
 /**
  * Map of command output descriptors
  */
-export type CommandOutputTypeDescriptorMap<OutputTypes extends CommandOutputTypes> = {
-    readonly [K in keyof OutputTypes]: CommandOutputTypeDescriptor<OutputTypes[K]>;
+export type CommandOutputTypeDescriptorMap = {
+    readonly [K: string]: CommandOutputTypeDescriptor<unknown>;
 }
 
 /**
  * Descriptor of a command
  */
-export interface CommandDescriptor<
-    InputTypes extends CommandInputTypes,
-    OutputTypes extends CommandOutputTypes
-> {
-    readonly commandName: string;
+export interface CommandDescriptor {
     readonly description: LanguageDescription<{
         readonly title: string;
         readonly humanDescription?: string;
@@ -98,8 +78,8 @@ export interface CommandDescriptor<
     readonly endpointUri: string;
     readonly requiredConfigProfiles?: string[];
     readonly requiresUserConfirmation?: boolean;
-    readonly inputTypes: CommandInputTypeDescriptorMap<Required<InputTypes>>;
-    readonly outputTypes: CommandOutputTypeDescriptorMap<Required<OutputTypes>>;
+    readonly inputTypes: CommandInputTypeDescriptorMap;
+    readonly outputTypes: CommandOutputTypeDescriptorMap;
 }
 
 /**
@@ -108,7 +88,7 @@ export interface CommandDescriptor<
 export interface ConfigProfileDescriptor<ConfigType> {
     readonly setupUri: string;
     readonly scope: DefinitionScope;
-    readonly description?: LanguageDescription<{
+    readonly description: LanguageDescription<{
         readonly label: string;
     }>;
     readonly schema?: JSONSchemaType<ConfigType>;
@@ -129,27 +109,17 @@ export interface TermsAndConditionsDescriptor {
 }
 
 /**
- * Configuration profile types (base type)
- */
-export type ConfigProfileTypes = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    [K: string]: any;
-}
-
-/**
  * Map of configuration profile descriptors
  */
-export type ConfigProfileDescriptorMap<ConfigTypes> = {
-    [K in keyof ConfigTypes]: ConfigProfileDescriptor<ConfigTypes[K]>;
+export type ConfigProfileDescriptorMap = {
+    [K: string]: ConfigProfileDescriptor<unknown>;
 }
 
 /**
  * Descriptor of a service setup
  */
-export interface SetupDescriptor<
-    ConfigTypes extends ConfigProfileTypes
-> {
-    configProfiles?: ConfigProfileDescriptorMap<ConfigTypes>;
+export interface SetupDescriptor {
+    configProfiles?: ConfigProfileDescriptorMap;
     termsAndConditions?: TermsAndConditionsDescriptor[];
 }
 
@@ -161,10 +131,15 @@ export interface AcceptedPaymentSchemaDescriptor {
     options?: Record<string, unknown>;
 }
 
+export interface CommandMap {
+    [K: string]: CommandDescriptor;
+}
+
 /**
  * Service manifest
  */
 export interface ServiceManifest {
+    "@asmv": "1.0.0";
     serviceName: string;
     version: string;
     baseUri: string;
@@ -175,7 +150,7 @@ export interface ServiceManifest {
         developerDescription?: string;
         aiDescription?: string;
     }>;
-    setup?: SetupDescriptor<Record<string, unknown>>;
-    commands: CommandDescriptor<Record<string, unknown>, Record<string, unknown>>[];
+    setup?: SetupDescriptor;
+    commands: CommandMap;
     acceptedPaymentSchemas?: AcceptedPaymentSchemaDescriptor[];
 }

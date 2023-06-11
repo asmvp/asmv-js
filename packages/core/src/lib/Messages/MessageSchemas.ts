@@ -11,20 +11,23 @@ import * as Messages from "./MessageTypes";
 export const CommandInput: JSONSchemaType<Messages.CommandInput> = {
     type: "object",
     properties: {
-        name: {
+        inputType: {
             type: "string"
         },
         value: {} as JSONSchemaType<unknown>
     },
-    required: ["name", "value"]
+    required: ["inputType", "value"]
 }
 
-export const CommandOutput_Data: JSONSchemaType<Messages.CommandOutput_Data> = {
+export const CommandOutput: JSONSchemaType<Messages.CommandOutput> = {
     type: "object",
     properties: {
-        type: {
+        returnType: {
             type: "string",
-            enum: [Messages.CommandOutputType.Data]
+            enum: [Messages.CommandReturnType.Output]
+        },
+        outputType: {
+            type: "string"
         },
         data: {} as JSONSchemaType<unknown>,
         summary: {
@@ -32,15 +35,15 @@ export const CommandOutput_Data: JSONSchemaType<Messages.CommandOutput_Data> = {
             nullable: true
         }
     },
-    required: ["type"]
-} as JSONSchemaType<Messages.CommandOutput_Data>;
+    required: ["returnType", "outputType"]
+} as JSONSchemaType<Messages.CommandOutput>;
 
-export const CommandOutput_Error: JSONSchemaType<Messages.CommandOutput_Error> = {
+export const CommandError: JSONSchemaType<Messages.CommandError> = {
     type: "object",
     properties: {
-        type: {
+        returnType: {
             type: "string",
-            enum: [Messages.CommandOutputType.Error]
+            enum: [Messages.CommandReturnType.Error]
         },
         errorName: {
             type: "string"
@@ -50,11 +53,14 @@ export const CommandOutput_Error: JSONSchemaType<Messages.CommandOutput_Error> =
         },
         data: {} as JSONSchemaType<unknown>
     },
-    required: ["type", "errorName", "description"]
-} as JSONSchemaType<Messages.CommandOutput_Error>;
+    required: ["returnType", "errorName", "description"]
+} as JSONSchemaType<Messages.CommandError>;
 
-export const CommandOutput: JSONSchemaType<Messages.CommandOutput> = {
-    oneOf: [ CommandOutput_Data, CommandOutput_Error ]
+export const CommandReturnItem: JSONSchemaType<Messages.CommandReturnItem> = {
+    oneOf: [
+        CommandOutput,
+        CommandError
+    ]
 };
 
 export const Invoke: JSONSchemaType<Messages.Invoke> = {
@@ -94,8 +100,9 @@ export const RequestInput: JSONSchemaType<Messages.RequestInput> = {
             enum: [Messages.MessageType.RequestInput]
         },
         inputs: {
-            type: "array",
-            items: CommandInputDescriptor
+            type: "object",
+            additionalProperties: CommandInputDescriptor,
+            required: []
         }
     },
     required: ["messageType", "inputs"]
@@ -127,9 +134,9 @@ export const Return: JSONSchemaType<Messages.Return> = {
             type: "string",
             enum: [Messages.MessageType.Return]
         },
-        outputs: {
+        items: {
             type: "array",
-            items: CommandOutput
+            items: CommandReturnItem,
         },
         close: {
             type: "boolean"
@@ -139,7 +146,7 @@ export const Return: JSONSchemaType<Messages.Return> = {
             nullable: true
         }
     },
-    required: ["messageType", "outputs"]
+    required: ["messageType", "items", "close"]
 };
 
 export const Cancel: JSONSchemaType<Messages.Cancel> = {
@@ -284,7 +291,7 @@ export function compileValidators(): {
     Invoke: ValidateFunction<Messages.Invoke>,
     RequestInput: ValidateFunction<Messages.RequestInput>,
     ProvideInput: ValidateFunction<Messages.ProvideInput>,
-    Return: ValidateFunction<Messages.Return>,
+    ReturnOutput: ValidateFunction<Messages.Return>,
     Cancel: ValidateFunction<Messages.Cancel>,
     RequestUserConfirmation: ValidateFunction<Messages.RequestUserConfirmation>,
     ProvideUserConfirmation: ValidateFunction<Messages.ProvideUserConfirmation>,
@@ -298,7 +305,7 @@ export function compileValidators(): {
         Invoke: ajv.compile(Invoke),
         RequestInput: ajv.compile(RequestInput),
         ProvideInput: ajv.compile(ProvideInput),
-        Return: ajv.compile(Return),
+        ReturnOutput: ajv.compile(Return),
         Cancel: ajv.compile(Cancel),
         RequestUserConfirmation: ajv.compile(RequestUserConfirmation),
         ProvideUserConfirmation: ajv.compile(ProvideUserConfirmation),

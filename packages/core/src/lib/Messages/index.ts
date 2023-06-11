@@ -6,5 +6,6 @@
 
 import * as Message from "./MessageTypes";
 import * as MessageSchema from "./MessageSchemas";
+import * as MessageErrors from "./MessageErrors";
 
-export { Message, MessageSchema };
+export { Message, MessageSchema, MessageErrors };

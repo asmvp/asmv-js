@@ -10,5 +10,5 @@ export * from "./lib/Messages";
 export * from "./lib/ContextTypes";
 export * from "./lib/ContextManager";
 export * from "./lib/ClientContext";
-export * from "./lib/ServiceContext";
+export * from "./lib/ServiceContext/ServiceContext";
 export * from "./lib/ServiceContextStore";

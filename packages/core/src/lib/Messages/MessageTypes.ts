@@ -5,7 +5,7 @@
  */
 
 import { TSerializableData } from "@asmv/utils";
-import { CommandInputTypeDescriptor } from "../Manifest/ManifestTypes";
+import { CommandInputTypeDescriptorMap } from "../Manifest/ManifestTypes";
 
 /**
  * Message type
@@ -27,26 +27,24 @@ export enum MessageType {
  * Command argument object
  */
 export interface CommandInput {
-    name: string;
+    inputType: string;
     value: TSerializableData;
 }
 
 /** List of command inputs */
 export type CommandInputList = CommandInput[];
 
-/**
- * A type of command return value
- */
-export enum CommandOutputType {
-    Data = "data",
-    Error = "error"
+export enum CommandReturnType {
+    Output = "Output",
+    Error = "Error"
 }
 
 /**
- * Command return value for data
+ * Command return value for output
  */
-export interface CommandOutput_Data {
-    type: CommandOutputType.Data;
+export interface CommandOutput {
+    returnType: CommandReturnType.Output;
+    outputType: string;
     data?: unknown;
     summary?: string;
 }
@@ -54,15 +52,17 @@ export interface CommandOutput_Data {
 /**
  * Command return value for error
  */
-export interface CommandOutput_Error {
-    type: CommandOutputType.Error;
+export interface CommandError {
+    returnType: CommandReturnType.Error;
     errorName: string;
     description: string;
     data?: unknown;
 }
 
-/** Command return value */
-export type CommandOutput = CommandOutput_Data | CommandOutput_Error;
+/*
+ * Command return value union
+ */
+export type CommandReturnItem = CommandOutput | CommandError;
 
 /** Command configuration profiles */
 export type ConfigProfiles = Record<string, unknown>;
@@ -87,7 +87,7 @@ export interface Invoke {
  */
 export interface RequestInput {
     messageType: MessageType.RequestInput;
-    inputs: CommandInputTypeDescriptor<unknown>[];
+    inputs: CommandInputTypeDescriptorMap;
 }
 
 /*
@@ -102,12 +102,12 @@ export interface ProvideInput {
 }
 
 /*
- * Message: Return
+ * Message: Return Data
  */
 export interface Return {
     messageType: MessageType.Return;
     /** Returned outputs */
-    outputs: CommandOutput[];
+    items: CommandReturnItem[];
     /** If this was a final message and command execution is now terminated */
     close: boolean;
     /** Sequence number to preserve ordering */
