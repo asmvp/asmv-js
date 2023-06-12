@@ -1,16 +1,16 @@
 /**
- * @package @asmv/core
+ * @package @asmv/utils
  * @author Jiri Hybek <jiri@hybek.cz>
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
-export type TSerializableData =
+export type SerializableData =
   | null
   | string
   | number
   | boolean
-  | Array<TSerializableData>
-  | { [K: string]: TSerializableData };
+  | Array<SerializableData>
+  | { [K: string]: SerializableData };
 
 export type TypeEquals<T, S> = [T] extends [S]
   ? [S] extends [T]
@@ -18,6 +18,6 @@ export type TypeEquals<T, S> = [T] extends [S]
     : false
   : false;
 
-export type TCancellablePromise<T> = Promise<T> & {
+export type CancellablePromise<T> = Promise<T> & {
   cancel: (rejectWith?: unknown) => void;
 };

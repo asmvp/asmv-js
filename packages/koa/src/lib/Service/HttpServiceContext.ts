@@ -5,20 +5,23 @@
  */
 
 import * as koa from "koa";
-import { ServiceContext, Http, SendMessageFunction, ServiceContextSerializedState } from "@asmv/core";
+import { ServiceContext, Http, SendMessageFunction, ServiceContextSerializedState, ServiceContextOptions, CommandDefinition } from "@asmv/core";
+import { ServiceChannel } from "./Channel";
 
 export type DefaultContextState = object;
 
-export class HttpServiceContext<State extends DefaultContextState, KoaContext extends koa.DefaultContext> extends ServiceContext<Http.Channel, State> {
-    public koaContext: KoaContext;
+export class HttpServiceContext<State extends DefaultContextState, KoaContext extends koa.DefaultContext> extends ServiceContext<ServiceChannel, State> {
+    public koaContext?: KoaContext;
 
     public constructor(
         sendMessageFn: SendMessageFunction<Http.Channel>,
-        koaContext: KoaContext,
-        channel: Http.Channel,
+        opts: ServiceContextOptions,
+        commandDefinition: CommandDefinition,
+        koaContext: KoaContext|undefined,
+        channel: ServiceChannel,
         serializedState?: ServiceContextSerializedState
     ) {
-        super(sendMessageFn, channel, serializedState);
+        super(sendMessageFn, opts, commandDefinition, channel, serializedState);
         this.koaContext = koaContext;
     }
 }
@@ -30,17 +33,9 @@ export type DefaultHttpServiceContext = HttpServiceContext<DefaultContextState, 
  */
 export type HttpServiceContextConstructor<ServiceContext extends DefaultHttpServiceContext> = new (
     sendMessageFn: SendMessageFunction<Http.Channel>,
+    opts: ServiceContextOptions,
+    commandDefinition: CommandDefinition,
     koaContext: ServiceContext["koaContext"],
     channel: Http.Channel,
     serializedState?: ServiceContextSerializedState
 ) => ServiceContext;
-
-// --- test
-
-export class MyHttpContext<State extends object, KoaContext extends koa.Context> extends HttpServiceContext<State, KoaContext> {
-    public user?: {
-        id: string;
-    }
-}
-
-// export const test: HttpServiceContextConstructor<object, Context> = MyHttpContext;

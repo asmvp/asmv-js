@@ -7,4 +7,7 @@
 export * from "./Command";
 export * from "./HttpServiceContext";
 export * from "./Service";
-export * from "./ServiceRouter";
+export { ServiceRoutingSchema } from "./ServiceRouter";
+export * from "./DeclarativeApi";
+
+export { ConfigProfile, Manifest } from "@asmv/core";

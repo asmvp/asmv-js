@@ -87,18 +87,18 @@ export interface ResponseBody_Error extends ChannelInfo {
     }
 }
 
-export interface ClientChannel {
+export type ClientChannel = {
     clientChannelUrl: string;
     clientChannelToken: string;
     clientChannelId: string;
 }
 
-export interface ServiceChannel {
+export type ServiceChannel = {
     serviceChannelUrl: string;
     serviceChannelToken: string;
     serviceChannelId: string;
 }
 
-export interface Channel extends ClientChannel, ServiceChannel {
+export type Channel = ClientChannel & ServiceChannel & {
     protocolVersion: string;
 }

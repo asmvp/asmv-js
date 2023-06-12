@@ -4,47 +4,38 @@
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
-import { Manifest, ServiceContextStore, MemoryServiceContextStore, Http } from "@asmv/core";
-import { createEventEmitter } from "@asmv/utils";
-import Ajv, { ValidateFunction } from "ajv";
+import {
+    ContextManager,
+    Http,
+    Manifest,
+    MemoryServiceContextStore,
+    ServiceContextStatus,
+    ServiceContextStore,
+    ServiceDefinition,
+    ServiceDefinitionOptions,
+    ServiceUriResolver
+} from "@asmv/core";
+import { createEventEmitter, emitEvent } from "@asmv/utils";
 import * as koa from "koa";
 import Router from "@koa/router";
-import semver from "semver";
 import { v4 as uuid_v4 } from "uuid";
 
-import { CommandDefinition } from "./Command";
+import { HttpCommandDefinition } from "./Command";
 import { DefaultHttpServiceContext, HttpServiceContext, HttpServiceContextConstructor } from "./HttpServiceContext";
-import { compileSchema, RouterKoaContext, sendMessageToClient } from "../Shared/ProtocolHelpers";
-import { createServiceRouter, getServiceChannelUrl, ServiceRoutingSchema } from "./ServiceRouter";
+import { RouterKoaContext, sendMessageToClient } from "../Shared/ProtocolHelpers";
+import { createServiceRouter, getCommandInvokeUrl, getServiceChannelUrl, ServiceRoutingSchema } from "./ServiceRouter";
+import { ServiceChannel } from "./Channel";
 
 /**
  * Service options
  */
-export interface ServiceOptions<ServiceContext extends DefaultHttpServiceContext> {
-    serviceName: string;
-    version: string;
-    description: Manifest.ServiceManifest["description"];
+export interface ServiceOptions<ServiceContext extends DefaultHttpServiceContext> extends ServiceDefinitionOptions {
     baseUrl: string;
-    defaultLanguage: string;
-    configProfiles?: Manifest.ConfigProfileDescriptor[];
-    termsAndConditions?: Manifest.TermsAndConditionsDescriptor[];
-    acceptedPaymentSchemas?: Manifest.AcceptedPaymentSchemaDescriptor[];
-    commands?: CommandDefinition<ServiceContext>[];
-
     contextConstructor: HttpServiceContextConstructor<ServiceContext>;
     routingSchema: ServiceRoutingSchema;
     userActionTimeout?: number;
     serviceContextStore?: ServiceContextStore;
-}
-
-export interface ConfigProfileDefinition {
-    descriptor: Manifest.ConfigProfileDescriptor;
-    validator: ValidateFunction|null;
-}
-
-export interface ServiceChannel<ServiceContext extends DefaultHttpServiceContext> extends Http.Channel {
-    commandName: string;
-    ctx: ServiceContext;
+    commands: HttpCommandDefinition<ServiceContext>[];
 }
 
 type RouterMiddlewareFromContext<ServiceContext extends DefaultHttpServiceContext> = 
@@ -58,116 +49,33 @@ type RouterMiddlewareFromContext<ServiceContext extends DefaultHttpServiceContex
 /**
  * Service definition
  */
-export class ServiceDefinition<ServiceContext extends DefaultHttpServiceContext> {
-    private ajv: Ajv;
-
-    public readonly serviceName: string;
-    public readonly version: string;
-    public readonly description: Manifest.ServiceManifest["description"];
-    public readonly baseUrl: string;
-    public readonly defaultLanguage: string;
+export class HttpService<ServiceContext extends DefaultHttpServiceContext> extends ServiceDefinition {
+    protected readonly baseUrl: string;
 
     public readonly contextConstructor: HttpServiceContextConstructor<ServiceContext>;
     public readonly userActionTimeout: number;
     public readonly routingSchema: ServiceRoutingSchema;
-    public readonly serviceContextStore: ServiceContextStore;
-    // public readonly contextManager: ContextManager<ServiceContext>;
 
-    public readonly configProfiles: Map<string, ConfigProfileDefinition> = new Map();
-    public readonly termsAndConditions: Map<string, Manifest.TermsAndConditionsDescriptor> = new Map();
-    public readonly acceptedPaymentSchemas: Map<string, Manifest.AcceptedPaymentSchemaDescriptor> = new Map();
-    public readonly commands: Map<string, CommandDefinition<ServiceContext>> = new Map();
+    private serviceContextStore: ServiceContextStore;
+    private contextManager: ContextManager<ServiceContext> = new ContextManager<ServiceContext>();
 
+    protected override commands: Map<string, HttpCommandDefinition<ServiceContext>> = new Map();
     public readonly middlewares: RouterMiddlewareFromContext<ServiceContext>[] = [];
 
-    private channels: Map<string, ServiceChannel<ServiceContext>> = new Map();
     public readonly onError = createEventEmitter<unknown>();
 
     public constructor(options: ServiceOptions<ServiceContext>) {
-        this.ajv = new Ajv();
+        super(options);
 
-        this.serviceName = options.serviceName;
-        this.version = options.version;
-        this.description = options.description;
         this.baseUrl = options.baseUrl;
-        this.defaultLanguage = options.defaultLanguage;
-
         this.contextConstructor = options.contextConstructor;
         this.userActionTimeout = options.userActionTimeout || 300;
         this.routingSchema = options.routingSchema;
         this.serviceContextStore = options.serviceContextStore ?? new MemoryServiceContextStore();
 
-        // Check version
-        if (!semver.valid(this.version)) {
-            throw new Error(`Service version '${this.version}' is not a valid semver string.`);
+        for (const command of options.commands ?? []) {
+            this.addCommand(command);
         }
-
-        // Add config profiles
-        if (options.configProfiles) {
-            options.configProfiles.forEach((cp) => this.configProfile(cp));
-        }
-
-        // Add terms and conditions
-        if (options.termsAndConditions) {
-            options.termsAndConditions.forEach((tc) => this.addTermsAndConditions(tc));
-        }
-
-        // Add commands
-        if (options.commands) {
-            options.commands.forEach((cmd) => this.command(cmd));
-        }    
-    }
-
-    /**
-     * Adds configuration profile to the service
-     *
-     * @param descriptor Profile descriptor
-     * @throws Error if configuration profile is already defined
-     */
-    public configProfile(descriptor: Manifest.ConfigProfileDescriptor): void {
-        if (this.configProfiles.has(descriptor.name)) {
-            throw new Error(`Config profile '${descriptor.name}' is already defined.`);
-        }
-
-        const validator = compileSchema(
-            this.ajv,
-            descriptor.schema,
-            `Failed to compile schema for config profile '${descriptor.name}'.`
-        );
-
-        // Add profile
-        this.configProfiles.set(descriptor.name, {
-            descriptor,
-            validator
-        });
-    }
-
-    /**
-     * Adds terms and conditions to the service
-     *
-     * @param descriptor Terms and conditions descriptor
-     * @throws Error if terms and conditions are already defined
-     */
-    public addTermsAndConditions(descriptor: Manifest.TermsAndConditionsDescriptor): void {
-        if (this.termsAndConditions.has(descriptor.name)) {
-            throw new Error(`Terms and conditions '${descriptor.name}' are already defined.`);
-        }
-
-        this.termsAndConditions.set(descriptor.name, descriptor);
-    }
-
-    /**
-     * Adds accepted payment schema to the service
-     *
-     * @param descriptor Accepted payment schema descriptor
-     * @throws Error if payment schema is already defined
-     */
-    public acceptPaymentSchema(descriptor: Manifest.AcceptedPaymentSchemaDescriptor): void {
-        if (this.acceptedPaymentSchemas.has(descriptor.schemaName)) {
-            throw new Error(`Accepted payment schema '${descriptor.schemaName}' is already defined.`);
-        }
-        
-        this.acceptedPaymentSchemas.set(descriptor.schemaName, descriptor);
     }
 
     /**
@@ -175,22 +83,8 @@ export class ServiceDefinition<ServiceContext extends DefaultHttpServiceContext>
      *
      * @param command Command definition
      */
-    public command(command: CommandDefinition<ServiceContext>): void {
-        if (this.commands.has(command.descriptor.commandName)) {
-            throw new Error(`Command '${command.descriptor.commandName}' is already defined.`);
-        }
-
-        // Validate configuration profiles
-        if (command.descriptor.requiredConfigProfiles) {
-            command.descriptor.requiredConfigProfiles.forEach((cp) => {
-                if (!this.configProfiles.has(cp)) {
-                    throw new Error(`Command '${command.descriptor.commandName}' requires config profile '${cp}' which is not defined in the service.`);
-                }
-            });
-        }
-
-        // Add command
-        this.commands.set(command.descriptor.commandName, command);
+    public override addCommand(command: HttpCommandDefinition<ServiceContext>): void {
+        super.addCommand(command);
     }
 
     /**
@@ -199,34 +93,22 @@ export class ServiceDefinition<ServiceContext extends DefaultHttpServiceContext>
      * @param commandName Command name
      * @returns Command definition or undefined if command is not defined
      */
-    public getCommand(commandName: string): CommandDefinition<ServiceContext>|undefined {
+    public getCommand(commandName: string): HttpCommandDefinition<ServiceContext>|undefined {
         return this.commands.get(commandName);
     }
 
     /**
-     * Returns asmv service manifest
+     * Returns service manifest
      *
      * @returns Service manifest
      */
-    public getManifest(): Manifest.ServiceManifest {
-        return {
-            serviceName: this.serviceName,
-            version: this.version,
-            description: this.description,
-            baseUri: this.baseUrl,
-            defaultLanguage: this.defaultLanguage,
-            setup: {
-                configProfiles: Array.from(this.configProfiles.values()).map((cp) => cp.descriptor),
-                termsAndConditions: Array.from(this.termsAndConditions.values()),
-            },
-            acceptedPaymentSchemas: Array.from(this.acceptedPaymentSchemas.values()),
-            commands: Array.from(this.commands.values()).map((cmd) => {
-                return {
-                    ...cmd.descriptor,
-                    endpointUri: `${this.baseUrl}/invoke/${cmd.descriptor.commandName}`
-                }
-            })
+    public override getManifest(): Manifest.ServiceManifest {
+        const uriResolver: ServiceUriResolver = {
+            getBaseUri: () => this.baseUrl,
+            getCommandEndpointUri: (commandName: string) => getCommandInvokeUrl(this.routingSchema, this.baseUrl, commandName)
         };
+
+        return super.getManifest(uriResolver);
     }
 
     /**
@@ -249,16 +131,24 @@ export class ServiceDefinition<ServiceContext extends DefaultHttpServiceContext>
     }
 
     /**
-     * Adds channel to the service state
+     * Creates context and channel
      *
-     * @param channel Channel
-     * @param ctx Service context
+     * @param clientChannel Client channel
+     * @param koaContext Koa context
+     * @param commandName Command name
      */
-    public createChannel(clientChannel: Http.ClientChannel, koaContext: RouterKoaContext): ServiceChannel<ServiceContext> {
+    public createContext(clientChannel: Http.ClientChannel, koaContext: RouterKoaContext, commandName: string): ServiceContext {
+        const commandDef = this.commands.get(commandName);
+        
+        if (!commandDef) {
+            throw new Error(`Command '${commandName}' is not defined in service.`);
+        }
+
         const serviceChannelId = uuid_v4();
         const serviceChannelToken = uuid_v4();
 
-        const httpChannel: Http.Channel = {
+        const httpChannel: ServiceChannel = {
+            commandName: commandName,
             clientChannelUrl: clientChannel.clientChannelUrl,
             clientChannelToken: clientChannel.clientChannelToken,
             clientChannelId: clientChannel.clientChannelId,
@@ -270,65 +160,103 @@ export class ServiceDefinition<ServiceContext extends DefaultHttpServiceContext>
 
         const serviceContext = new this.contextConstructor(
             sendMessageToClient,
+            {
+                validateReturnTypes: true
+            },
+            commandDef,
             koaContext,
             httpChannel
         );
 
-        const serviceChannel: ServiceChannel<ServiceContext> = {
-            ...httpChannel,
-            ctx: serviceContext
-        };
-
-        this.channels.set(serviceChannelId, serviceChannel);
-
-        return serviceChannel;
+        this.contextManager.add(serviceChannelId, serviceContext);
+        return serviceContext;
     }
 
     /**
-     * Returns channel by id
+     * Returns context by service channel ID or undefined if context is not found
      *
      * @param serviceChannelId Service channel ID
-     * @returns Service channel or undefined if channel is not found
+     * @returns Service context or undefined if context is not found
      */
-    public getChannel(serviceChannelId: string): ServiceChannel<ServiceContext>|undefined {
-        return this.channels.get(serviceChannelId);
+    public getLocalContext(serviceChannelId: string): ServiceContext|undefined {
+        return this.contextManager.get(serviceChannelId);
     }
 
     /**
-     * Removes channel from the service state
+     * Stores serialized context state to the store and disposes context instance
+     * WARNING: Context is not usable after this operation
      *
-     * @param serviceChannelId Service channel ID
+     * @param serviceContext Service context
      */
-    public removeChannel(serviceChannelId: string): void {
-        this.channels.delete(serviceChannelId);
+    public storeAndDisposeContext(serviceContext: ServiceContext): Promise<void> {
+        const channel = serviceContext.channel;
+        const serializedState = serviceContext.serialize();
+
+        this.contextManager.remove(channel.serviceChannelId);
+        serviceContext.dispose();
+
+        return this.serviceContextStore.store(channel.serviceChannelId, channel, serializedState);
     }
 
     /**
-     * Suspends channel
+     * Restores context from store
      *
      * @param serviceChannelId Service channel ID
+     * @param koaContext Koajs context
+     * @returns Service context or undefined if context is not found
      */
-    public async suspendChannel(serviceChannelId: string): Promise<void> {
-        const channel = this.channels.get(serviceChannelId);
+    public async restoreContext(serviceChannelId: string, koaContext?: RouterKoaContext): Promise<ServiceContext|undefined> {
+        // Get data from store
+        const data = await this.serviceContextStore.get(serviceChannelId);
 
-        if (!channel) {
-            throw new Error(`Service channel '${serviceChannelId}' not found.`);
+        if (!data) {
+            return undefined;
         }
 
-        //@todo Store it to the store
-    }
-
-    public async restoreChannel(serviceChannelId: string): Promise<void> {
-        const channel = this.channels.get(serviceChannelId);
-
-        if (!channel) {
-            throw new Error(`Service channel '${serviceChannelId}' not found.`);
+        const channel = data.channel as ServiceChannel;
+        const state = data.state;
+        const commandDef = this.commands.get(channel.commandName);
+        
+        if (!commandDef) {
+            throw new Error(`Command '${channel.commandName}' is not defined in service.`);
         }
 
-        //@todo Restore it from the store
+        const serviceContext = new this.contextConstructor(
+            sendMessageToClient,
+            {
+                validateReturnTypes: true
+            },
+            commandDef,
+            koaContext,
+            channel,
+            {
+                ...state,
+                // Activate the context again if it was suspended
+                status: state.status == ServiceContextStatus.Suspended
+                    ? ServiceContextStatus.Active
+                    : state.status
+            }
+        );
+
+        this.contextManager.add(serviceChannelId, serviceContext);
+        return serviceContext;
+    }
+
+    /**
+     * Deletes context both from memory and from store and disposes context instance
+     * WARNING: Context is not usable after this operation
+     *
+     * @param serviceChannelId Service channel ID
+     */
+    public deleteAndDisposeContext(serviceChannelId: string): void {
+        const context = this.contextManager.get(serviceChannelId);
+
+        this.contextManager.remove(serviceChannelId);
+        this.serviceContextStore.delete(serviceChannelId).catch((err) => {
+            emitEvent(this.onError, err);
+        });
+        
+        context?.dispose();
     }
 }
 
-export function Service<ServiceContext extends DefaultHttpServiceContext>(options: ServiceOptions<ServiceContext>): ServiceDefinition<ServiceContext> {
-    return new ServiceDefinition(options);
-}

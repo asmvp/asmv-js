@@ -63,7 +63,15 @@ export class HttpTransportError extends Error {
     public static fromBody(body: ResponseBody_Error) {
         switch (body.errorName) {
             case ErrorName.InvalidRequest: {
-                return new InvalidRequestError(body, body.details);
+                let nestedError: Error|undefined;
+
+                if (body.nestedError) {
+                    nestedError = new Error(body.nestedError?.message);
+                    nestedError.name = body.nestedError.name;
+                    nestedError.stack = body.nestedError.stack;
+                }
+
+                return new InvalidRequestError(body, nestedError);
             }
             case ErrorName.VersionNotSupported: {
                 const details = body.details as { requestedVersion: string, supportedVersions: string[] };
@@ -89,7 +97,7 @@ export class HttpTransportError extends Error {
                 let nestedError: Error|undefined;
 
                 if (body.nestedError) {
-                    const nestedError = new Error(body.nestedError?.message);
+                    nestedError = new Error(body.nestedError?.message);
                     nestedError.name = body.nestedError.name;
                     nestedError.stack = body.nestedError.stack;
                 }
@@ -101,14 +109,14 @@ export class HttpTransportError extends Error {
 }
 
 export class InvalidRequestError extends HttpTransportError {
-    public constructor(sessionInfo: ChannelInfo, details?: unknown) {
+    public constructor(sessionInfo: ChannelInfo, details?: unknown, nestedError?: Error) {
         super({
             ...sessionInfo,
             httpStatus: 400,
             errorName: ErrorName.InvalidRequest,
             message: "Invalid request",
             details
-        });
+        }, nestedError);
     }
 }
 

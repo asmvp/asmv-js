@@ -8,7 +8,7 @@ import Ajv, { JSONSchemaType, ValidateFunction } from "ajv";
 import { ValidationResult, compileSchema, validate } from "../Shared/SchemaValidation";
 import { ConfigProfileDefinition } from "./ConfigProfileDefinition";
 
-export interface CommandOpts {
+export interface CommandOptions {
     readonly name: string;
     readonly description: LanguageDescription<{
         readonly title: string;
@@ -47,7 +47,7 @@ export class CommandDefinition {
     private inputTypes: Map<string, InputDefinition<unknown>> = new Map();
     private outputTypes: Map<string, OutputDefinition<unknown>> = new Map();
 
-    public constructor(opts: CommandOpts) {
+    public constructor(opts: CommandOptions) {
         this.name = opts.name;
         this.description = opts.description;
         this.requiresUserConfirmation = opts.requiresUserConfirmation ?? false;

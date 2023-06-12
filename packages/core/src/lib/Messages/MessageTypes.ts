@@ -4,7 +4,7 @@
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
-import { TSerializableData } from "@asmv/utils";
+import { SerializableData } from "@asmv/utils";
 import { CommandInputTypeDescriptorMap } from "../Manifest/ManifestTypes";
 
 /**
@@ -28,7 +28,7 @@ export enum MessageType {
  */
 export interface CommandInput {
     inputType: string;
-    value: TSerializableData;
+    value: SerializableData;
 }
 
 /** List of command inputs */
@@ -168,7 +168,7 @@ export interface AuthorizePayment {
     /** The payment schema selected by the client */
     paymentSchema: string;
     /** Payment schema dependend data */
-    paymentData?: TSerializableData;
+    paymentData?: SerializableData;
     /** Requested amount */
     amount: number;
     /** Currency code */

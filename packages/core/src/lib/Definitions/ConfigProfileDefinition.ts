@@ -7,7 +7,7 @@ import { ConfigProfileDescriptor, DefinitionScope, LanguageDescription } from ".
 import Ajv, { JSONSchemaType, ValidateFunction } from "ajv";
 import { ValidationResult, compileSchema, validate } from "../Shared/SchemaValidation";
 
-export interface ConfigProfileOpts<ConfigType> {
+export interface ConfigProfileOptions<ConfigType> {
     readonly name: string;
     readonly setupUri: string;
     readonly scope: DefinitionScope;
@@ -36,7 +36,7 @@ export class ConfigProfileDefinition<ConfigType> {
      * Constructor
      * @param descriptor Config profile descriptor
      */
-    public constructor(opts: ConfigProfileOpts<ConfigType>) {
+    public constructor(opts: ConfigProfileOptions<ConfigType>) {
         this.name = opts.name;
         this.setupUri = opts.setupUri;
         this.scope = opts.scope;
@@ -90,6 +90,6 @@ export class ConfigProfileDefinition<ConfigType> {
  * @param descriptor Config profile descriptor
  * @returns Config profile definition instance
  */
-export function ConfigProfile<ConfigType>(opts: ConfigProfileOpts<ConfigType>): ConfigProfileDefinition<ConfigType> {
+export function ConfigProfile<ConfigType>(opts: ConfigProfileOptions<ConfigType>): ConfigProfileDefinition<ConfigType> {
     return new ConfigProfileDefinition<ConfigType>(opts);
 }

@@ -4,15 +4,13 @@
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
-import { Http, HttpErrors, Message, ServiceContextStatus } from "@asmv/core";
-import { emitEvent, TSerializableData } from "@asmv/utils";
+import { HttpErrors } from "@asmv/core";
 import Router from "@koa/router";
 import BodyParser from "koa-bodyparser";
-import { v4 as uuid_v4 } from "uuid";
-import { ServiceDefinition } from "./Service";
+import { HttpService } from "./Service";
 import { DefaultHttpServiceContext } from "./HttpServiceContext";
-import { checkProtocolVersion, getHttpHeaderOrThrow, parseChannelInfo, messageValidators, getValidBodyOrThrow, SUPPORTED_ASMV_VERSIONS, sendMessageToClient, RouterKoaContext, handleProtocolErrors, getPathParameterOrThrow } from "../Shared/ProtocolHelpers";
-import { CommandHandler } from "./Command";
+import { checkProtocolVersion, getHttpHeaderOrThrow, parseChannelInfo, messageValidators, getValidBodyOrThrow, SUPPORTED_ASMV_VERSIONS, RouterKoaContext, handleProtocolErrors, getPathParameterOrThrow } from "../Shared/ProtocolHelpers";
+import { executeCommandHandler } from "./ExecutionHandler";
 
 /**
  * Service routing schema
@@ -21,6 +19,10 @@ export enum ServiceRoutingSchema {
     HttpHeaders,
     UrlPath,
     Both
+}
+
+export function getCommandInvokeUrl(_routingSchema: ServiceRoutingSchema, baseUrl: string, commandName: string) {
+    return `${baseUrl}/invoke/${commandName}`;
 }
 
 export function getServiceChannelUrl(routingSchema: ServiceRoutingSchema, baseUrl: string, channelId: string) {
@@ -39,53 +41,7 @@ export function getServiceChannelUrlPattern(routingSchema: ServiceRoutingSchema)
     }
 }
 
-function executeCommandHandler<ServiceContext extends DefaultHttpServiceContext>(
-    service: ServiceDefinition<ServiceContext>,
-    ctx: ServiceContext,
-    handler: CommandHandler<ServiceContext>
-) {
-    const key = ctx.getChannel().serviceChannelId;
-
-    handler(ctx).then(async () => {
-        if (ctx.getStatus() === ServiceContextStatus.Suspended) {
-            const channel = ctx.getChannel();
-            const state = ctx.serialize();
-
-            service.serviceContextStore.store(key, channel as unknown as TSerializableData, state);
-            service.contextManager.remove(key);
-
-            ctx.dispose();
-            return;
-        }
-        
-        if (ctx.getStatus() !== ServiceContextStatus.Finished) {
-            await ctx.finish();
-        }
-
-        service.serviceContextStore.delete(key);
-        service.contextManager.remove(key);
-
-        ctx.dispose();
-    }, (err) => {
-        if (err instanceof Error) {
-            ctx.returnError(err.name, err.message);
-        } else {
-            ctx.returnError("UnexpectedError", String(err));
-        }
-
-        if (ctx.getStatus() !== ServiceContextStatus.Finished) {
-            ctx.finish();
-        }
-
-        service.serviceContextStore.delete(key);
-        service.contextManager.remove(key);
-
-        ctx.dispose();
-        emitEvent(service.onError, err);
-    });
-}
-
-export function createServiceRouter<ServiceContext extends DefaultHttpServiceContext>(service: ServiceDefinition<ServiceContext>): Router {
+export function createServiceRouter<ServiceContext extends DefaultHttpServiceContext>(service: HttpService<ServiceContext>): Router {
     const router = new Router();
 
     // Add error handler
@@ -124,81 +80,24 @@ export function createServiceRouter<ServiceContext extends DefaultHttpServiceCon
         
             // Validate message
             const message = getValidBodyOrThrow(ctx, messageValidators.Invoke);
-            
-            // Verify config profiles
-            const requiredConfigProfiles = commandDef.descriptor.requiredConfigProfiles;
-
-            if (requiredConfigProfiles) {
-                requiredConfigProfiles.forEach((profileName) => {
-                    const profileDef = service.configProfiles.get(profileName);
-
-                    if (!profileDef) {
-                        throw new HttpErrors.UnexpectedError(ctx.channelInfo, new Error(`Configuration profile '${profileName}' is required but not defined in the service.`));
-                    }
-
-                    // Check if profile is provided
-                    if (!message.configProfiles[profileName]) {
-                        throw new HttpErrors.InvalidRequestError(ctx.channelInfo, {
-                            reason: `Configuration profile '${profileName}' is required but was not provided.`
-                        });
-                    }
-
-                    // Validate profile data
-                    if (profileDef.validator) {
-                        if (!profileDef.validator(message.configProfiles[profileName])) {
-                            throw new HttpErrors.InvalidRequestError(ctx.channelInfo, {
-                                reason: `Configuration profile '${profileName}' is invalid.`,
-                                details: profileDef.validator.errors
-                            });
-                        }
-                    }
-                });
-            }
         
-            // Create channel
-            const serviceChannelId = uuid_v4();
-
-            const channel: Http.Channel = {
+            // Create context
+            const serviceContext = service.createContext({
                 clientChannelUrl: clientChannelUrl,
                 clientChannelToken: clientChannelToken,
-                clientChannelId: clientChannelId,
-                serviceChannelUrl: getServiceChannelUrl(service.routingSchema, service.baseUrl, serviceChannelId),
-                serviceChannelId: serviceChannelId,
-                serviceChannelToken: "xxx",
-                protocolVersion: ctx.asmvVersion
-            };
+                clientChannelId: clientChannelId
+            }, ctx, commandName);
 
-            const serviceContext = new service.contextConstructor(
-                sendMessageToClient,
-                ctx,
-                channel
-            );
-
-            service.contextManager.add(serviceChannelId, serviceContext);
+            const channel = serviceContext.channel;
 
             // Return from endpoint and call commmand handler asynchronously
             ctx.status = 204;
-            ctx.append("x-asmv-service-channel-id", serviceChannelId);
+            ctx.append("x-asmv-service-channel-id", channel.serviceChannelId);
             ctx.append("x-asmv-service-channel-url", channel.serviceChannelUrl);
             ctx.append("x-asmv-service-channel-token", channel.serviceChannelToken);
 
-            executeCommandHandler(service, serviceContext, async (ctx) => {
-                // Check for user confirmation
-                if (commandDef.descriptor.requiresUserConfirmation) {
-                    if (!message.userConfirmation) {
-                        await serviceContext.requestUserConfirmation(undefined, service.userActionTimeout * 1000);
-                    }
-                }
-
-                // Provide inputs
-                serviceContext.handleIncomingMessage({
-                    messageType: Message.MessageType.ProvideInput,
-                    inputs: message.inputs
-                });
-            
-                // Invoke handler
-                await commandDef.handler(ctx);
-            });
+            await serviceContext.handleIncomingMessage(message);
+            executeCommandHandler(service, serviceContext, commandDef.handler);
         }
     );
 
@@ -222,40 +121,39 @@ export function createServiceRouter<ServiceContext extends DefaultHttpServiceCon
             const message = getValidBodyOrThrow(ctx, messageValidators.Message);
 
             // Try to get service context
-            let serviceContext: ServiceContext|undefined = service.contextManager.get(serviceChannelId);
+            let serviceContext: ServiceContext|undefined = service.getLocalContext(serviceChannelId);
             let wasRestored = false;
 
             // if it's not locally, check the store
             if (!serviceContext) {
-                const serializedData = await service.serviceContextStore.get(serviceChannelId);
-
-                if (!serializedData) {
-                    throw new HttpErrors.SessionNotFoundError(ctx.channelInfo);
-                }
-
-                serviceContext = new service.contextConstructor(
-                    sendMessageToClient,
-                    ctx,
-                    serializedData.channel as unknown as Http.Channel,
-                    serializedData.state
-                );
-
+                serviceContext = await service.restoreContext(serviceChannelId);
                 wasRestored = true;
             }
 
-            const channel = serviceContext.getChannel();
+            if (!serviceContext) {
+                throw new HttpErrors.SessionNotFoundError(ctx.channelInfo);
+            }
+
+            const channel = serviceContext.channel;
+            const commandName = channel.commandName;
+            const commandDef = service.getCommand(commandName);
+        
+            if (!commandDef) {
+                throw new HttpErrors.CommandNotFoundError(ctx.channelInfo, commandName);
+            }
 
             // Authorize
             if (authHeader !== `Bearer ${channel.serviceChannelToken}`) {
                 throw new HttpErrors.UnauthorizedError(ctx.channelInfo);
             }
 
-            // Handle message
-            serviceContext.handleIncomingMessage(message);
+            // Return from endpoint and call commmand handler asynchronously
+            ctx.status = 204;
+            await serviceContext.handleIncomingMessage(message);
 
             // Execute handler if context were restored
             if (wasRestored) {
-                executeCommandHandler(service, serviceContext, );
+                executeCommandHandler(service, serviceContext, commandDef.handler);
             }
         }
     )

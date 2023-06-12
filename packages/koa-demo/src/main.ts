@@ -1,5 +1,12 @@
+/**
+ * @package @asmv/koa-demo
+ * @author Jiri Hybek <jiri@hybek.cz>
+ * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
+ */
+
 import koa from 'koa';
-import { Service, Command, ServiceRoutingSchema, HttpServiceContext } from '@asmv/koa';
+import { Service, ServiceRoutingSchema, HttpServiceContext } from '@asmv/koa';
+import commands from "./commands";
 
 const host = process.env.HOST ?? 'localhost';
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
@@ -18,33 +25,9 @@ const service = Service({
     ],
     baseUrl: `http://${host}:${port}`,
     defaultLanguage: "en",
-
     routingSchema: ServiceRoutingSchema.Both,
     contextConstructor: HttpServiceContext,
-
-    commands: [
-        Command({
-            commandName: "echo",
-            description: [{
-                lang: "en",
-                title: "Echo",
-                humanDescription: "Echoes the input"
-            }],
-            inputs: [
-                {
-                    name: "value",
-                    description: [{
-                        lang: "en",
-                        title: "Value",
-                    }]
-                }
-            ]
-        }, async (ctx) => {
-            //const value = await ctx.getInputs([{ name: "value" }]);
-            ctx.returnData("Hello!");
-            await ctx.finish();
-        })
-    ]
+    commands: commands
 });
 
 app.use(service.getRouter().routes());

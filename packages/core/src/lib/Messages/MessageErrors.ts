@@ -5,7 +5,7 @@
  */
 
 import { ErrorObject } from "ajv";
-import { ValidationError } from "../Shared/SchemaValidation";
+import { MessageType } from "./MessageTypes";
 
 export enum ErrorName {
     InvalidMessage = "InvalidMessage",
@@ -16,22 +16,31 @@ export enum ErrorName {
     InvalidConfigProfile = "InvalidConfigProfile",
     InvalidInput = "InvalidInput",
     InvalidOutput = "InvalidOutput",
+    UnexpectedMessage = "UnexpectedMessage"
 }
 
-export interface MessageError {
-    /** Error message */
-    name: ErrorName;
-    /** Human & AI readable error message */
-    message: string;
-    /** Detailed error description */
-    details?: unknown;
-    /** Child errros */
-    childErrors?: MessageError[];
+export class MessageError extends Error {
+    public override message: string;
+    public details?: unknown;
+    public childErrors?: MessageError[];
+
+    constructor(message: string) {
+        super(message);
+        this.message = message;
+    }
+
+    public toJSON(): object {
+        return {
+            name: this.name,
+            message: this.message,
+            details: this.details,
+            childErrors: this.childErrors?.map((e) => e.toJSON())
+        };
+    }
 }
 
-export class InvalidMessage extends Error implements MessageError {
+export class InvalidMessage extends MessageError {
     override readonly name = ErrorName.InvalidMessage;
-    public readonly childErrors: MessageError[];
 
     constructor(childErrors: MessageError[]) {
         super("Message is not valid. See child errors for more information.");
@@ -39,9 +48,9 @@ export class InvalidMessage extends Error implements MessageError {
     }
 }
 
-export class MissingConfigProfile extends Error implements MessageError {
+export class MissingConfigProfile extends MessageError {
     override readonly name = ErrorName.MissingConfigProfile;
-    public readonly details: {
+    override readonly details: {
         profileName: string;
     };
 
@@ -51,9 +60,9 @@ export class MissingConfigProfile extends Error implements MessageError {
     }
 }
 
-export class UnknownConfigProfile extends Error implements MessageError {
+export class UnknownConfigProfile extends MessageError {
     override readonly name = ErrorName.UnknownConfigProfile;
-    public readonly details: {
+    override readonly details: {
         profileName: string;
     };
 
@@ -63,9 +72,9 @@ export class UnknownConfigProfile extends Error implements MessageError {
     }
 }
 
-export class UnknownInputTypeError extends Error implements MessageError {
+export class UnknownInputTypeError extends MessageError {
     override readonly name = ErrorName.UnknownInputType;
-    public readonly details: {
+    override readonly details: {
         inputIndex: number;
         inputType: string;
     };
@@ -76,9 +85,9 @@ export class UnknownInputTypeError extends Error implements MessageError {
     }
 }
 
-export class UnknownOutputTypeError extends Error implements MessageError {
+export class UnknownOutputTypeError extends MessageError {
     override readonly name = ErrorName.UnknownOutputType;
-    public readonly details: {
+    override readonly details: {
         outputType: string;
     };
 
@@ -88,9 +97,9 @@ export class UnknownOutputTypeError extends Error implements MessageError {
     }
 }
 
-export class InvalidConfigProfile extends Error implements MessageError {
+export class InvalidConfigProfile extends MessageError {
     override readonly name = ErrorName.InvalidConfigProfile;
-    public readonly details: {
+    override readonly details: {
         profileName: string;
         errors: ErrorObject[];
     };
@@ -101,29 +110,37 @@ export class InvalidConfigProfile extends Error implements MessageError {
     }
 }
 
-export class InvalidInput extends ValidationError implements MessageError {
+export class InvalidInput extends MessageError {
     override readonly name = ErrorName.InvalidInput;
-    public readonly details: {
+    override readonly details: {
         inputIndex: number;
         inputType: string;
         errors: ErrorObject[];
     };
 
     constructor(inputIndex: number, inputType: string, errors: null|ErrorObject[]) {
-        super(errors, `Failed to validate input #${inputIndex} of type '${inputType}'. See details for more information.`);
+        super(`Failed to validate input #${inputIndex} of type '${inputType}'. See details for more information.`);
         this.details = { inputIndex, inputType, errors: errors ?? [] };
     }
 }
 
-export class InvalidOutput extends ValidationError implements MessageError {
+export class InvalidOutput extends MessageError {
     override readonly name = ErrorName.InvalidOutput;
-    public readonly details: {
+    override readonly details: {
         outputType: string;
         errors: ErrorObject[];
     };
 
     constructor(outputType: string, errors: null|ErrorObject[]) {
-        super(errors, `Data of output type '${outputType}' is not valid. See details for more information.`);
+        super(`Data of output type '${outputType}' is not valid. See details for more information.`);
         this.details = { outputType, errors: errors ?? [] };
+    }
+}
+
+export class UnexpectedMessage extends MessageError {
+    override readonly name = ErrorName.UnexpectedMessage;
+
+    constructor(messageType: MessageType) {
+        super(`Received unexpected message of type '${messageType}'.`);
     }
 }

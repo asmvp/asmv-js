@@ -6,9 +6,9 @@
 
 import { ValidateFunction } from "ajv";
 import * as koa from "koa";
-import { satisfies } from "semver";
+import { satisfies, coerce } from "semver";
 import Router from "@koa/router";
-import { HttpErrors, Http, MessageSchema, Message } from "@asmv/core";
+import { HttpErrors, Http, MessageSchema, Message, MessageErrors } from "@asmv/core";
 import axios from "axios";
 
 export const SUPPORTED_ASMV_VERSIONS = [ "1.x" ];
@@ -85,13 +85,19 @@ export function getValidBodyOrThrow<Body>(ctx: RouterKoaContext, validator: Vali
 
 export function checkProtocolVersion(supportedVersions: string[]) {
     return async (ctx: RouterKoaContext, next: koa.Next): Promise<void> => {
-        const protocolVersion = getHttpHeaderOrThrow(ctx, "x-asmv-protocol-version", true);
+        const protocolVersion = coerce(getHttpHeaderOrThrow(ctx, "x-asmv-protocol-version", true));
 
-        if (!satisfies(protocolVersion, supportedSemverVersions)) {
-            throw new HttpErrors.VersionNotSupportedError(ctx.channelInfo ?? {}, protocolVersion, supportedVersions)
+        if (!protocolVersion) {
+            throw new HttpErrors.InvalidRequestError({}, {
+                reason: `Protocol version is not a valid semver string.`
+            });
         }
 
-        ctx.asmvVersion = protocolVersion;
+        if (!satisfies(protocolVersion, supportedSemverVersions)) {
+            throw new HttpErrors.VersionNotSupportedError(ctx.channelInfo ?? {}, protocolVersion.format(), supportedVersions)
+        }
+
+        ctx.asmvVersion = protocolVersion.format();
         return next();
     }
 }
@@ -115,12 +121,22 @@ export function handleProtocolErrors() {
         try {
             return await next();
         } catch (err) {
+            let returnError: HttpErrors.HttpTransportError;
+
+            const channelInfo = (ctx as RouterKoaContext).channelInfo;
+
             if (err instanceof HttpErrors.HttpTransportError) {
-                ctx.status = err.httpStatus;
-                ctx.body = err.toBody();
+                returnError = err;
+            } else if (err instanceof MessageErrors.MessageError) {
+                returnError = new HttpErrors.InvalidRequestError(channelInfo ?? {}, err.toJSON());
+            } else if (err instanceof Error) {
+                returnError = new HttpErrors.UnexpectedError(channelInfo ?? {}, err);
             } else {
-                throw err;
+                returnError = new HttpErrors.UnexpectedError(channelInfo ?? {}, new Error(String(err)));
             }
+
+            ctx.status = returnError.httpStatus;
+            ctx.body = returnError.toBody(true);
         }
     }
 }

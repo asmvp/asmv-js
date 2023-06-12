@@ -19,7 +19,7 @@ export interface ServiceSetupOpts {
     termsAndConditions?: TermsAndConditionsDescriptor[];
 }
 
-export interface ServiceDefinitionOpts {
+export interface ServiceDefinitionOptions {
     serviceName: string;
     version: string;
     defaultLanguage: string;
@@ -29,47 +29,38 @@ export interface ServiceDefinitionOpts {
         developerDescription?: string;
         aiDescription?: string;
     }>;
-    setup?: ServiceSetupOpts;
-    commands?: CommandDefinition[];
+    termsAndConditions?: TermsAndConditionsDescriptor[];
     acceptedPaymentSchemas?: AcceptedPaymentSchemaDescriptor[];
 }
 
 export class ServiceDefinition {
-    private readonly serviceName: string;
-    private readonly version: string;
-    private readonly defaultLanguage: string;
-    private readonly description: LanguageDescription<{
+    protected readonly serviceName: string;
+    protected readonly version: string;
+    protected readonly defaultLanguage: string;
+    protected readonly description: LanguageDescription<{
         title: string;
         humanDescription: string;
         developerDescription?: string;
         aiDescription?: string;
     }>;
 
-    private configProfiles: Map<string, ConfigProfileDefinition<unknown>> = new Map();
-    private termsAndConditions: TermsAndConditionsDescriptor[];
-    private acceptedPaymentSchemas: AcceptedPaymentSchemaDescriptor[];
+    protected configProfiles: Map<string, ConfigProfileDefinition<unknown>> = new Map();
+    protected termsAndConditions: TermsAndConditionsDescriptor[];
+    protected acceptedPaymentSchemas: AcceptedPaymentSchemaDescriptor[];
 
-    private commandDefinitions: Map<string, CommandDefinition> = new Map();
+    protected commands: Map<string, CommandDefinition> = new Map();
 
-    public constructor(opts: ServiceDefinitionOpts) {
+    public constructor(opts: ServiceDefinitionOptions) {
         this.serviceName = opts.serviceName;
         this.version = opts.version;
         this.defaultLanguage = opts.defaultLanguage;
         this.description = opts.description;
-        this.termsAndConditions = opts.setup?.termsAndConditions ?? [];
+        this.termsAndConditions = opts.termsAndConditions ?? [];
         this.acceptedPaymentSchemas = opts.acceptedPaymentSchemas ?? [];
 
         // Check version
         if (!semver.valid(this.version)) {
             throw new Error(`Service version '${this.version}' is not a valid semver string.`);
-        }
-
-        for (const profile of opts.setup?.configProfiles ?? []) {
-            this.addConfigProfile(profile);
-        }
-
-        for (const command of opts.commands ?? []) {
-            this.addCommand(command);
         }
     }
 
@@ -92,7 +83,7 @@ export class ServiceDefinition {
 
     public addCommand(command: CommandDefinition) {
         // Check if command is already registered
-        if (this.commandDefinitions.has(command.getName())) {
+        if (this.commands.has(command.getName())) {
             throw new Error(`Command with name "${command.getName()}" is already registered.`);
         }
 
@@ -102,8 +93,7 @@ export class ServiceDefinition {
         }
 
         // Add command
-        this.commandDefinitions.set(command.getName(), command);
-
+        this.commands.set(command.getName(), command);
     }
 
     public getManifest(uriResolver: ServiceUriResolver): ServiceManifest {
@@ -117,10 +107,9 @@ export class ServiceDefinition {
             setup.configProfiles![profile.getName()] = profile.getDescriptor();
         }
 
-        const commandMap: CommandMap = Object.fromEntries(Array.from(this.commandDefinitions.entries()).map((entry) => {
+        const commandMap: CommandMap = Object.fromEntries(Array.from(this.commands.entries()).map((entry) => {
             const [ key, command ] = entry;
             const endpointUri = uriResolver.getCommandEndpointUri(command.getName());
-
             return [ key, command.getDescriptor(endpointUri) ];
         }));
 

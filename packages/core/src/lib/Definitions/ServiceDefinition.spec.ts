@@ -30,14 +30,13 @@ describe("Service Definition", () => {
             serviceName: "myService",
             version: "1.0.0",
             defaultLanguage: "en_US",
-            description: [],
-            commands: [
-                new CommandDefinition({
-                    name: "myCommand",
-                    description: []
-                })
-            ]
+            description: []
         });
+
+        svc.addCommand(new CommandDefinition({
+            name: "myCommand",
+            description: []
+        }));
 
         expect(svc.getManifest(uriResolver)).toMatchObject({
             serviceName: "myService",
@@ -64,8 +63,7 @@ describe("Service Definition", () => {
             serviceName: "myService",
             version: "1.0.0",
             defaultLanguage: "en_US",
-            description: [],
-            commands: []
+            description: []
         });
         
         svc.addCommand(new CommandDefinition({
