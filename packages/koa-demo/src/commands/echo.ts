@@ -36,7 +36,7 @@ export default Command({
 
     handleState<State>("initial", async (ctx) => {
         const { name } = await getProfile(ctx);
-        const value = await getValue(ctx);
+        const value = await getValue.one(ctx);
 
         returnValue(ctx, `Hello, ${name}! You said: ${value}`);
 
@@ -49,7 +49,7 @@ export default Command({
 
     handleState<State>("loop", async (ctx) => {
         const { name } = await getProfile(ctx);
-        const value = await getValue(ctx);
+        const value = await getValue.one(ctx);
         console.log("ctx state", ctx.state);
         const previous = getStateData(ctx).loop.previousValue;
         returnValue(ctx, `Hello, ${name}! Previous value was: ${previous}. You said: ${value}`);

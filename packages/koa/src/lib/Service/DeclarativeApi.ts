@@ -27,7 +27,11 @@ export type BaseContextState<Data extends StateData> = {
 export type StatefulHttpServiceContext = HttpServiceContext<BaseContextState<StateData>, koa.DefaultContext>;
 
 export type ConfigProfileGetter<T> = (ctx: DefaultHttpServiceContext) => Promise<T>;
-export type GetInputFunction<T> = (ctx: DefaultHttpServiceContext, waitTimeoutMs?: number) => Promise<T>;
+export type GetInputFunction<T> = {
+    one: (ctx: DefaultHttpServiceContext, waitTimeoutMs?: number) => Promise<T>;
+    tryOne: (ctx: DefaultHttpServiceContext) => Promise<T|undefined>;
+    many: (ctx: DefaultHttpServiceContext, minCount: number, maxCount?: number, waitTimeoutMs?: number) => Promise<T[]>;
+};
 export type GetInputListFunction<T> = (ctx: DefaultHttpServiceContext, count?: number, waitTimeoutMs?: number) => Promise<T[]|undefined>;
 export type ReturnOutputFunction<T> = (ctx: DefaultHttpServiceContext, output: T) => void;
 export type StateHandlerFunction<Context extends StatefulHttpServiceContext> = (ctx: Context) => Promise<void>;
