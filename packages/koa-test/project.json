@@ -1,7 +1,7 @@
 {
-  "name": "koa-demo",
+  "name": "koa-test",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/koa-demo/src",
+  "sourceRoot": "packages/koa-test/src",
   "projectType": "application",
   "targets": {
     "build": {
@@ -10,12 +10,12 @@
       "defaultConfiguration": "production",
       "options": {
         "platform": "node",
-        "outputPath": "dist/packages/koa-demo",
+        "outputPath": "dist/packages/koa-test",
         "format": ["cjs"],
-        "bundle": false,
-        "main": "packages/koa-demo/src/main.ts",
-        "tsConfig": "packages/koa-demo/tsconfig.app.json",
-        "assets": ["packages/koa-demo/src/assets"],
+        "bundle": true,
+        "main": "packages/koa-test/src/main.ts",
+        "tsConfig": "packages/koa-test/tsconfig.app.json",
+        "assets": ["packages/koa-test/src/assets"],
         "generatePackageJson": true,
         "esbuildOptions": {
           "sourcemap": true,
@@ -40,14 +40,14 @@
       "executor": "@nrwl/js:node",
       "defaultConfiguration": "development",
       "options": {
-        "buildTarget": "koa-demo:build"
+        "buildTarget": "koa-test:build"
       },
       "configurations": {
         "development": {
-          "buildTarget": "koa-demo:build:development"
+          "buildTarget": "koa-test:build:development"
         },
         "production": {
-          "buildTarget": "koa-demo:build:production"
+          "buildTarget": "koa-test:build:production"
         }
       },
       "dependsOn": [ { "target": "build", "projects": "dependencies" } ]
@@ -56,14 +56,14 @@
       "executor": "@nrwl/linter:eslint",
       "outputs": ["{options.outputFile}"],
       "options": {
-        "lintFilePatterns": ["packages/koa-demo/**/*.ts"]
+        "lintFilePatterns": ["packages/koa-test/**/*.ts"]
       }
     },
     "test": {
       "executor": "@nrwl/jest:jest",
       "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
       "options": {
-        "jestConfig": "packages/koa-demo/jest.config.ts",
+        "jestConfig": "packages/koa-test/jest.config.ts",
         "passWithNoTests": true
       },
       "configurations": {

@@ -10,6 +10,7 @@
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
     "src/**/*.speclib.ts",
+    "src/**/*.testlib.ts",
     "src/**/*.d.ts"
   ]
 }
