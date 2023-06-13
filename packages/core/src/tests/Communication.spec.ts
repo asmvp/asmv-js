@@ -23,7 +23,7 @@ function setupDialogue<State extends object>(
 ) {
     const clientCtx: ClientContext<Channel> = new ClientContext(async (_, message) => {
         return serviceCtx.handleIncomingMessage(message);
-    }, channel);
+    }, {}, channel);
 
     const serviceCtx: ServiceContext<Channel, State> = new ServiceContext(
         async (_: string, message: Message) => {
@@ -59,8 +59,8 @@ function setupDialogue<State extends object>(
     };
 
     if (options?.logMessages) {
-        onEvent(clientCtx.onMessage, (msg) => console.log("Service -> Client:", msg));
-        onEvent(serviceCtx.onMessage, (msg) => console.log("Client -> Service:", msg));
+        onEvent(clientCtx.onIncomingMessage, (msg) => console.log("Service -> Client:", msg));
+        onEvent(serviceCtx.onIncomingMessage, (msg) => console.log("Client -> Service:", msg));
     }
 
     return {
@@ -104,7 +104,7 @@ describe("Action Handler / Client", () => {
             TestCommand,
             "test",
             async (ctx) => {
-                const [ name ] = await ctx.getInputs<string>("name");
+                const [ name ] = await ctx.readInputs<string>("name", 1, 1);
 
                 ctx.state.name = name;
 
@@ -136,7 +136,7 @@ describe("Action Handler / Client", () => {
             TestCommand,
             "test",
             async (ctx) => {
-                const [ name ] = await ctx.getInputs<string>("name");
+                const [ name ] = await ctx.readInputs<string>("name", 1, 1);
 
                 ctx.state.name = name;
 

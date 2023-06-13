@@ -8,19 +8,22 @@ import { MessageType } from "../Messages/MessageTypes";
 import { CommandInputTypeDescriptor, CommandInputTypeDescriptorMap } from "../Manifest/ManifestTypes";
 import * as Message from "../Messages/MessageTypes";
 import { SendMessageFunction } from "./ContextTypes";
-import { createEventEmitter, emitEvent, createAsyncQueue, addToAsyncQueue, waitForAsyncQueue, flushAsyncQueue, removeAllEventListeners } from "@asmv/utils";
+import { createEventEmitter, emitEvent, createAsyncQueue, addToAsyncQueue, waitForAsyncQueue, flushAsyncQueue, removeAllEventListeners, waitMsAsync } from "@asmv/utils";
 import { v4 as uuid_v4 } from "uuid";
 import { CommandDefinition } from "../Definitions/CommandDefinition";
 import * as MessageErrors from "../Messages/MessageErrors";
 import { ValidationError } from "../Shared/SchemaValidation";
+import { RetryOptions, DefaultRetryOptions, getRetryDelay } from "./ContextHelpers";
+import { MessageTransportError, SendMessageError } from "./ContextErrors";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface ServiceContextOptions {
+export interface ServiceContextOptions extends RetryOptions {
     validateReturnTypes?: boolean;
 }
 
 const DefaultServiceContextOptions: ServiceContextOptions = {
-    validateReturnTypes: true
+    validateReturnTypes: true,
+    ...DefaultRetryOptions
 };
 
 /**
@@ -150,10 +153,13 @@ export class ServiceContext<
     private returnBuffer: Array<Message.CommandReturnItem> = [];
 
     /* Events for incoming messages */
-    public readonly onMessage = createEventEmitter<Message.Message>();
+    public readonly onIncomingMessage = createEventEmitter<Message.Message>();
+    public readonly onOutgoingMessage = createEventEmitter<Message.Message>();
     public readonly onCancel = createEventEmitter<void>();
     public readonly onSuspend = createEventEmitter<void>();
     public readonly onFinish = createEventEmitter<void>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    public readonly onDispose = createEventEmitter<ServiceContext<any, any>>();
 
     /**
      * Context constructor
@@ -199,10 +205,17 @@ export class ServiceContext<
      */
     public dispose() {
         flushAsyncQueue(this.incomingMessageQueue, new Error("Context was disposed"));
-        removeAllEventListeners(this.onMessage);
-        removeAllEventListeners(this.onCancel);
-        removeAllEventListeners(this.onSuspend);
-        removeAllEventListeners(this.onFinish);
+
+        try {
+            emitEvent(this.onDispose, this);
+        } finally {
+            removeAllEventListeners(this.onIncomingMessage);
+            removeAllEventListeners(this.onOutgoingMessage);
+            removeAllEventListeners(this.onCancel);
+            removeAllEventListeners(this.onSuspend);
+            removeAllEventListeners(this.onFinish);
+            removeAllEventListeners(this.onDispose);
+        }
     }
 
     /**
@@ -212,7 +225,6 @@ export class ServiceContext<
         flushAsyncQueue(this.incomingMessageQueue, new Error("Context was cancelled"));
         emitEvent(this.onCancel, undefined);
         this.status = ServiceContextStatus.Cancelled;
-
     }
 
     /**
@@ -226,7 +238,31 @@ export class ServiceContext<
             throw new Error("Context is not active anymore. It was either suspended, cancelled or finished.");
         }
 
-        return this.sendMessageFn(this.channel, message);
+        emitEvent(this.onOutgoingMessage, message);
+
+        const maxTries = this.opts.sendMessageRetries ?? 1;
+
+        let tries = 0;
+        let lastError: unknown;
+
+        while (tries < maxTries) {
+            try {
+                await this.sendMessageFn(this.channel, message);
+                return;
+            } catch (err) {
+                lastError = err;
+
+                if (err instanceof MessageTransportError && err.canRetry) {
+                    const delay = getRetryDelay(tries, this.opts);
+                    await waitMsAsync(delay);
+                    tries++;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        throw new SendMessageError(`Failed to send message to the client.`, this.channel, tries, lastError);
     }
 
     /**
@@ -295,6 +331,7 @@ export class ServiceContext<
                             });
                         }
 
+                        emitEvent(this.onIncomingMessage, message);
                         break;
                     }
 
@@ -317,7 +354,7 @@ export class ServiceContext<
 
                         resolve();
                         this.addInputListToBuffer(message.inputs);
-                        emitEvent(this.onMessage, message);
+                        emitEvent(this.onIncomingMessage, message);
                         break;
                     }
 
@@ -331,7 +368,7 @@ export class ServiceContext<
 
                         resolve();
                         addToAsyncQueue(this.incomingMessageQueue, message);
-                        emitEvent(this.onMessage, message);
+                        emitEvent(this.onIncomingMessage, message);
                         break;
                     }
     
@@ -342,6 +379,7 @@ export class ServiceContext<
                         }
 
                         resolve();
+                        emitEvent(this.onIncomingMessage, message);
                         this.cancel();
                         break;
                     }
@@ -465,33 +503,34 @@ export class ServiceContext<
     }
 
     /**
-     * Pulls input from queue or requests it from the agent
+     * Pulls inputs from queue or requests it from the agent
      *
-     * @param type Input type
-     * @param descriptor Input descriptor
+     * @param typeName Input type
+     * @param minCount Minimum number of inputs to read
+     * @param maxCount Maximum number of inputs to read
      * @param waitTimeoutMs Timeout in milliseconds to wait for the input
      * @returns List of inputs
      */
-    public async getInputs<T>(type: string, count = 1, waitTimeoutMs = 300000): Promise<T[]> {
-        const inputType = this.commandDefinition.getInputType(type);
+    public async readInputs<T>(typeName: string, minCount: number, maxCount: number, waitTimeoutMs = 300000): Promise<T[]> {
+        const inputType = this.commandDefinition.getInputType(typeName);
 
         if (inputType === undefined) {
-            throw new Error(`Input type '${type}' is not defined in the command definition.`);
+            throw new Error(`Input type '${typeName}' is not defined in the command definition.`);
         }
 
         const result: T[] = [];
         let isWaiting = false;
 
-        while(result.length < count) {
+        while(result.length < maxCount) {
             // Try to get input from the queue
             const reply = await waitForAsyncQueue(
                 this.inputQueue,
-                (item) => item?.inputType === type,
+                (item) => item?.inputType === typeName,
                 isWaiting ? waitTimeoutMs : -1
             ) as Message.CommandInput|undefined;
 
-            if (isWaiting && reply === undefined) {
-                throw new Error(`Timeout waiting for input type ${type}.`);
+            if (isWaiting && reply === undefined && result.length < minCount) {
+                throw new Error(`Timeout waiting for input type ${typeName}.`);
             }
 
             // Process input
@@ -499,13 +538,15 @@ export class ServiceContext<
                 result[result.length] = reply.value as T;
                 isWaiting = false;
                 continue;
+            } else if (result.length >= minCount) {
+                break;
             }
 
             // Else try to request input from the agent
             await this.sendInputRequest({
-                [type]: {
+                [typeName]: {
                     ...inputType.descriptor,
-                    minCount: count - result.length
+                    minCount: Math.max(1, minCount - result.length)
                 } as CommandInputTypeDescriptor<unknown>
             });
 

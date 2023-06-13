@@ -67,6 +67,10 @@ export type CommandReturnItem = CommandOutput | CommandError;
 /** Command configuration profiles */
 export type ConfigProfiles = Record<string, unknown>;
 
+export type UserConfirmation = {
+    confirmedBy: string;
+};
+
 /*
  * Message: Invoke
  */
@@ -77,9 +81,7 @@ export interface Invoke {
     /** Initial inputs */
     inputs: CommandInputList;
     /** User confirmation */
-    userConfirmation?: {
-        confirmedBy: string;
-    }
+    userConfirmation?: UserConfirmation;
 }
 
 /*

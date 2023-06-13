@@ -102,3 +102,13 @@ export type ServiceChannel = {
 export type Channel = ClientChannel & ServiceChannel & {
     protocolVersion: string;
 }
+
+export function isResponseBodyError(body: unknown): body is ResponseBody_Error {
+    return (
+        typeof body === "object" && body !== null &&
+        "httpStatus" in body && typeof body["httpStatus"] === "number" &&
+        "errorName" in body && typeof body["errorName"] === "string" &&
+        "message" in body && typeof body["message"] === "string" &&
+        "date" in body && typeof body["date"] === "string"
+    );
+}

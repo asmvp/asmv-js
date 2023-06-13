@@ -1,0 +1,15 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Echo command Should call command: Add_Reply_1p3 1`] = `
+{
+  "close": true,
+  "items": [
+    {
+      "data": 3,
+      "outputType": "value",
+      "returnType": "Output",
+    },
+  ],
+  "messageType": "Return",
+}
+`;

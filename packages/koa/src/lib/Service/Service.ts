@@ -15,7 +15,7 @@ import {
     ServiceDefinitionOptions,
     ServiceUriResolver
 } from "@asmv/core";
-import { createEventEmitter, emitEvent } from "@asmv/utils";
+import { createEventEmitter, emitEvent, onceEvent, removeAllEventListeners } from "@asmv/utils";
 import * as koa from "koa";
 import Router from "@koa/router";
 import { v4 as uuid_v4 } from "uuid";
@@ -31,6 +31,7 @@ import { ServiceChannel } from "./Channel";
  */
 export interface ServiceOptions<ServiceContext extends DefaultHttpServiceContext> extends ServiceDefinitionOptions {
     baseUrl: string;
+    pathPrefix?: string;
     contextConstructor: HttpServiceContextConstructor<ServiceContext>;
     routingSchema: ServiceRoutingSchema;
     userActionTimeout?: number;
@@ -50,7 +51,8 @@ type RouterMiddlewareFromContext<ServiceContext extends DefaultHttpServiceContex
  * Service definition
  */
 export class HttpService<ServiceContext extends DefaultHttpServiceContext> extends ServiceDefinition {
-    protected readonly baseUrl: string;
+    public readonly baseUrl: string;
+    public readonly pathPrefix: string;
 
     public readonly contextConstructor: HttpServiceContextConstructor<ServiceContext>;
     public readonly userActionTimeout: number;
@@ -62,12 +64,15 @@ export class HttpService<ServiceContext extends DefaultHttpServiceContext> exten
     protected override commands: Map<string, HttpCommandDefinition<ServiceContext>> = new Map();
     public readonly middlewares: RouterMiddlewareFromContext<ServiceContext>[] = [];
 
+    public readonly onContextCreated = createEventEmitter<ServiceContext>();
+    public readonly onContextDisposed = createEventEmitter<ServiceContext>();
     public readonly onError = createEventEmitter<unknown>();
 
     public constructor(options: ServiceOptions<ServiceContext>) {
         super(options);
 
         this.baseUrl = options.baseUrl;
+        this.pathPrefix = options.pathPrefix ?? "";
         this.contextConstructor = options.contextConstructor;
         this.userActionTimeout = options.userActionTimeout || 300;
         this.routingSchema = options.routingSchema;
@@ -168,7 +173,8 @@ export class HttpService<ServiceContext extends DefaultHttpServiceContext> exten
             httpChannel
         );
 
-        this.contextManager.add(serviceChannelId, serviceContext);
+        this.handleContextCreated(serviceContext);
+
         return serviceContext;
     }
 
@@ -238,7 +244,8 @@ export class HttpService<ServiceContext extends DefaultHttpServiceContext> exten
             }
         );
 
-        this.contextManager.add(serviceChannelId, serviceContext);
+        this.handleContextCreated(serviceContext);
+
         return serviceContext;
     }
 
@@ -258,5 +265,54 @@ export class HttpService<ServiceContext extends DefaultHttpServiceContext> exten
         
         context?.dispose();
     }
-}
 
+    /**
+     * Called when context is created
+     *
+     * @param serviceContext Service context
+     */
+    private handleContextCreated(serviceContext: ServiceContext): void {
+        const serviceChannelId = serviceContext.channel.serviceChannelId;
+
+        onceEvent(serviceContext.onCancel, () => {
+            this.deleteAndDisposeContext(serviceChannelId);
+        });
+
+        onceEvent(serviceContext.onDispose, () => {
+            this.handleContextDisposed(serviceContext);
+        });
+
+        this.contextManager.add(serviceChannelId, serviceContext);
+
+        try {
+            emitEvent(this.onContextCreated, serviceContext);
+        } catch (err) {
+            emitEvent(this.onError, err);
+        }
+    }
+
+    /**
+     * Called when context is disposed
+     *
+     * @param serviceContext Disposed service context
+     */
+    private handleContextDisposed(serviceContext: ServiceContext): void {
+        try {
+            emitEvent(this.onContextDisposed, serviceContext);
+        } catch (err) {
+            emitEvent(this.onError, err);
+        }
+    }
+
+    /**
+     * Disposes service inc. all contexts
+     */
+    public dispose(): void {
+        this.contextManager.getAll().forEach((context) => context.dispose());
+        this.contextManager.dispose();
+
+        removeAllEventListeners(this.onContextCreated);
+        removeAllEventListeners(this.onContextDisposed);
+        removeAllEventListeners(this.onError);
+    }
+}

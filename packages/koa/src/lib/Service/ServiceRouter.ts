@@ -42,7 +42,9 @@ export function getServiceChannelUrlPattern(routingSchema: ServiceRoutingSchema)
 }
 
 export function createServiceRouter<ServiceContext extends DefaultHttpServiceContext>(service: HttpService<ServiceContext>): Router {
-    const router = new Router();
+    const router = new Router({
+        prefix: service.pathPrefix,
+    });
 
     // Add error handler
     router.use(handleProtocolErrors());

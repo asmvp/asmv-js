@@ -1,0 +1,43 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Echo command Should call command: Echo_Reply 1`] = `
+{
+  "close": false,
+  "items": [
+    {
+      "data": "Hello, Test! You said: Hello",
+      "outputType": "value",
+      "returnType": "Output",
+    },
+  ],
+  "messageType": "Return",
+}
+`;
+
+exports[`Echo command Should retry if client channel is unreachable due to Bad Gateway: Echo_Client_BadGatewayReply 1`] = `
+{
+  "close": false,
+  "items": [
+    {
+      "data": "Hello, Test! You said: Bad Gateway",
+      "outputType": "value",
+      "returnType": "Output",
+    },
+  ],
+  "messageType": "Return",
+}
+`;
+
+exports[`Echo command Should retry if server channel is unreachable due to Bad Gateway: Echo_Service_BadGatewayReply 1`] = `
+{
+  "close": false,
+  "items": [
+    {
+      "data": "Hello, Test! You said: Bad Gateway",
+      "outputType": "value",
+      "returnType": "Output",
+    },
+  ],
+  "messageType": "Return",
+}
+`;

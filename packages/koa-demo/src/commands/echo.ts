@@ -4,7 +4,7 @@
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
-import { Command, useConfigProfile, useInput, useOutput, handleState, next, getStateData } from '@asmv/koa';
+import { Command, useConfigProfile, useInput, useOutput, handleState, next, finish } from '@asmv/koa';
 import NameConfigProfile from "../configProfiles/nameProfile";
 
 export default Command({
@@ -49,17 +49,24 @@ export default Command({
 
     handleState<State>("loop", async (ctx) => {
         const { name } = await getProfile(ctx);
-        const value = await getValue.one(ctx);
-        console.log("ctx state", ctx.state);
-        const previous = getStateData(ctx).loop.previousValue;
-        returnValue(ctx, `Hello, ${name}! Previous value was: ${previous}. You said: ${value}`);
+        
+        let value: string|undefined;
 
-        if (value != "exit") {            
-            await next(ctx, "loop", {
-                loop: {
-                    previousValue: value
-                }
-            });
-        }
+        do {
+            value = await getValue.tryOne(ctx);
+
+            if (value !== undefined) {
+                const previous = ctx.state.stateData.loop.previousValue;
+                returnValue(ctx, `Hello, ${name}! Previous value was: ${previous}. You said: ${value}`);
+                ctx.state.stateData.loop.previousValue = value;
+            }
+
+            if (value === "exit") {
+                await finish(ctx);
+                return;
+            }
+        } while(value);
+
+        await next(ctx, "loop");
     });
 });

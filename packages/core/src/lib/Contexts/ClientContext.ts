@@ -4,10 +4,12 @@
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
-import { addToAsyncQueue, createAsyncQueue, createEventEmitter, emitEvent, flushAsyncQueue, removeAllEventListeners, waitForAsyncQueue } from "@asmv/utils";
+import { addToAsyncQueue, createAsyncQueue, createEventEmitter, emitEvent, flushAsyncQueue, removeAllEventListeners, waitForAsyncQueue, waitMsAsync } from "@asmv/utils";
 import { SendMessageFunction } from "./ContextTypes";
 import { MessageType } from "../Messages/MessageTypes";
 import * as Message from "../Messages/MessageTypes";
+import { MessageTransportError, SendMessageError } from "./ContextErrors";
+import { DefaultRetryOptions, RetryOptions, getRetryDelay } from "./ContextHelpers";
 
 export enum ClientContextStatus {
     Invoked = "invoked",
@@ -15,20 +17,31 @@ export enum ClientContextStatus {
     Finished = "finished",
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface ClientContextOptions extends RetryOptions {}
+
+export const DefaultClientContextOptions: ClientContextOptions = {
+    ...DefaultRetryOptions
+};
 
 export class ClientContext<Channel> {
+    /** Client context options */
+    public readonly opts: ClientContextOptions = {};
+
     /** Client status */
     protected status: ClientContextStatus;
 
     /** Instance ID */
-    protected readonly channel: Channel;
+    public readonly channel: Channel;
 
     /** Function to send messages to the caller */
     protected readonly sendMessageFn: SendMessageFunction<Channel>;
 
     /* Events for incoming messages */
-    public readonly onMessage = createEventEmitter<Message.Message>();
+    public readonly onIncomingMessage = createEventEmitter<Message.Message>();
+    public readonly onOutgoingMessage = createEventEmitter<Message.Message>();
     public readonly onClose = createEventEmitter<void>();
+    public readonly onDispose = createEventEmitter<ClientContext<Channel>>();
 
     /** Incoming message queue */
     private messageQueue = createAsyncQueue<Message.Message|undefined>();
@@ -39,7 +52,8 @@ export class ClientContext<Channel> {
      * @param channel Instance ID
      * @param sendMessageFn Function to send message to the service
      */
-    public constructor(sendMessageFn: SendMessageFunction<Channel>, channel: Channel, status: ClientContextStatus = ClientContextStatus.Invoked) {
+    public constructor(sendMessageFn: SendMessageFunction<Channel>, opts: ClientContextOptions, channel: Channel, status: ClientContextStatus = ClientContextStatus.Invoked) {
+        this.opts = { ...DefaultClientContextOptions, ...opts };
         this.channel = channel;
         this.sendMessageFn = sendMessageFn;
         this.status = status;
@@ -50,8 +64,15 @@ export class ClientContext<Channel> {
      */
     public dispose() {
         flushAsyncQueue(this.messageQueue, new Error("Context was disposed"));
-        removeAllEventListeners(this.onMessage);
-        removeAllEventListeners(this.onClose);
+
+        try {
+            emitEvent(this.onDispose, this);
+        } finally {
+            removeAllEventListeners(this.onIncomingMessage);
+            removeAllEventListeners(this.onOutgoingMessage);
+            removeAllEventListeners(this.onClose);
+            removeAllEventListeners(this.onDispose);
+        }
     }
 
     /**
@@ -62,6 +83,7 @@ export class ClientContext<Channel> {
     protected close(status: ClientContextStatus) {
         this.status = status;
         emitEvent(this.onClose, undefined);
+        this.dispose();
     }
 
     /**
@@ -75,7 +97,31 @@ export class ClientContext<Channel> {
             throw new Error("Command was not invoked or already finished.");
         }
 
-        return this.sendMessageFn(this.channel, message);
+        emitEvent(this.onOutgoingMessage, message);
+
+        const maxTries = this.opts.sendMessageRetries ?? 1;
+
+        let tries = 0;
+        let lastError: unknown;
+
+        while (tries < maxTries) {
+            try {
+                await this.sendMessageFn(this.channel, message);
+                return;
+            } catch (err) {
+                lastError = err;
+
+                if (err instanceof MessageTransportError && err.canRetry) {
+                    const delay = getRetryDelay(tries, this.opts);
+                    await waitMsAsync(delay);
+                    tries++;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        throw new SendMessageError(`Failed to send message to the client.`, this.channel, tries, lastError);
     }
 
     /**
@@ -90,7 +136,7 @@ export class ClientContext<Channel> {
 
         // Add message to the queue and emit event
         addToAsyncQueue(this.messageQueue, message);
-        emitEvent(this.onMessage, message);
+        emitEvent(this.onIncomingMessage, message);
 
         if (message.messageType === MessageType.Return && message.close === true) {
             this.close(ClientContextStatus.Finished);
@@ -101,7 +147,7 @@ export class ClientContext<Channel> {
      * Returns an incoming message
      *
      * You can specify a timeout in milliseconds to wait for a message.
-     * If the timeout is reached or the client is closed, the function returns null.
+     * If the timeout is reached or the client is closed, the function returns undefined.
      *
      * @param waitForMs Timeout in milliseconds to wait for a message, zero = no timeout
      * @returns Incoming message

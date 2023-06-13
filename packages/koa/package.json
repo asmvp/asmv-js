@@ -1,5 +1,15 @@
 {
   "name": "@asmv/koa",
   "version": "0.0.1",
-  "type": "commonjs"
+  "description": "Both client and service implementation of the ASIMOV over HTTP protocol for the koa server.",
+  "keywords": [ "asmv", "asimov", "ai", "rpc", "api", "koa" ],
+  "type": "commonjs",
+  "license": "Apache-2.0",
+  "contributors": [
+    {
+      "name": "Jiri Hybek",
+      "email": "jiri@hybek.cz",
+      "url": "https://jiri.hybek.cz"
+    }
+  ]
 }

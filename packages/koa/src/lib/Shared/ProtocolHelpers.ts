@@ -8,8 +8,8 @@ import { ValidateFunction } from "ajv";
 import * as koa from "koa";
 import { satisfies, coerce } from "semver";
 import Router from "@koa/router";
-import { HttpErrors, Http, MessageSchema, Message, MessageErrors } from "@asmv/core";
-import axios from "axios";
+import { HttpErrors, Http, MessageSchema, Message, MessageErrors, MessageTransportError } from "@asmv/core";
+import axios, { AxiosError, AxiosResponse } from "axios";
 
 export const SUPPORTED_ASMV_VERSIONS = [ "1.x" ];
 export const supportedSemverVersions = SUPPORTED_ASMV_VERSIONS.join(" || ");
@@ -141,22 +141,73 @@ export function handleProtocolErrors() {
     }
 }
 
-export function sendMessageToClient(channel: Http.Channel, message: Message.Message): Promise<void> {
-    return axios.post(channel.clientChannelUrl, message, {
-        headers: {
-            "x-asmv-protocol-version": channel.protocolVersion,
-            "x-asmv-client-channel-id": channel.clientChannelId,
-            "authorization": channel.clientChannelToken ? `Bearer ${channel.clientChannelToken}` : undefined,
+function transformAxiosError(err: unknown): MessageTransportError|HttpErrors.HttpTransportError {
+    if (err instanceof AxiosError) {
+        let canRetry = true;
+
+        if (err.response && err.response.status >= 400 && err.response.status < 500) {
+            canRetry = false;
         }
-    });
+
+        if (err.response?.data && Http.isResponseBodyError(err.response.data)) {
+            return HttpErrors.HttpTransportError.fromBody(err.response.data);
+        }
+
+        return new MessageTransportError(`Request failed with status code ${err.response?.status ?? "unknown"}.`, canRetry, {
+            request: {
+                url: err.config?.url,
+                method: err.config?.method,
+                headers: err.config?.headers,
+            },
+            response: {
+                status: err.response?.status,
+                headers: err.response?.headers
+            }
+        });
+    } else {
+        return new MessageTransportError("Unexpected error. See nested error for more details.", false, err);
+    }
 }
 
-export function sendMessageToService(channel: Http.Channel, message: Message.Message): Promise<void> {
-    return axios.post(channel.serviceChannelUrl, message, {
-        headers: {
-            "x-asmv-protocol-version": channel.protocolVersion,
-            "x-asmv-service-channel-id": channel.serviceChannelId,
-            "authorization": channel.serviceChannelToken ? `Bearer ${channel.serviceChannelToken}` : undefined,
-        }
-    });
+export async function sendMessageToClient(channel: Http.Channel, message: Message.Message): Promise<void> {
+    try {
+        await axios.post(channel.clientChannelUrl, message, {
+            headers: {
+                "x-asmv-protocol-version": channel.protocolVersion,
+                "x-asmv-client-channel-id": channel.clientChannelId,
+                "authorization": channel.clientChannelToken ? `Bearer ${channel.clientChannelToken}` : undefined,
+            }
+        });
+    } catch (err) {
+        throw transformAxiosError(err);
+    }
+}
+
+export async function sendInvokeMessageToService(channel: Http.ClientChannel, protocolVersion: string, endpointUrl: string, message: Message.Invoke): Promise<AxiosResponse> {
+    try {
+        return await axios.post(endpointUrl, message, {
+            headers: {
+                "x-asmv-protocol-version": protocolVersion,
+                "x-asmv-client-channel-id": channel.clientChannelId,
+                "x-asmv-client-channel-url": channel.clientChannelUrl,
+                "x-asmv-client-channel-token": channel.clientChannelToken
+            }
+        });
+    } catch (err) {
+        throw transformAxiosError(err);
+    }
+}
+
+export async function sendMessageToService(channel: Http.Channel, message: Message.Message): Promise<void> {
+    try {
+        await axios.post(channel.serviceChannelUrl, message, {
+            headers: {
+                "x-asmv-protocol-version": channel.protocolVersion,
+                "x-asmv-service-channel-id": channel.serviceChannelId,
+                "authorization": channel.serviceChannelToken ? `Bearer ${channel.serviceChannelToken}` : undefined,
+            }
+        });
+    } catch (err) {
+        throw transformAxiosError(err);
+    }
 }

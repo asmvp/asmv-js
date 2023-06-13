@@ -29,7 +29,7 @@ export type StatefulHttpServiceContext = HttpServiceContext<BaseContextState<Sta
 export type ConfigProfileGetter<T> = (ctx: DefaultHttpServiceContext) => Promise<T>;
 export type GetInputFunction<T> = {
     one: (ctx: DefaultHttpServiceContext, waitTimeoutMs?: number) => Promise<T>;
-    tryOne: (ctx: DefaultHttpServiceContext) => Promise<T|undefined>;
+    tryOne: (ctx: DefaultHttpServiceContext, waitTimeoutMs?: number) => Promise<T|undefined>;
     many: (ctx: DefaultHttpServiceContext, minCount: number, maxCount?: number, waitTimeoutMs?: number) => Promise<T[]>;
 };
 export type GetInputListFunction<T> = (ctx: DefaultHttpServiceContext, count?: number, waitTimeoutMs?: number) => Promise<T[]|undefined>;
@@ -124,26 +124,18 @@ export function useInput<InputType>(type: string, descriptor: Manifest.CommandIn
     assertCurrentCommand();
     currentCommand?.addInputType(type, descriptor);
 
-    return async (ctx: DefaultHttpServiceContext, waitTimeoutMs?: number) => {
-        const res = await ctx.getInputs(type, 1, waitTimeoutMs);
-        return res?.[0] as InputType;
-    }
-}
-
-/**
- * Registers input type to the command and returns a list getter function
- * The input getter function can be used to read input from the context
- *
- * @param type Input type
- * @param descriptor Input type descriptor
- * @returns Input list getter function
- */
-export function useInputList<InputType>(type: string, descriptor: Manifest.CommandInputTypeDescriptor<InputType>): GetInputListFunction<InputType> {
-    assertCurrentCommand();
-    currentCommand?.addInputType(type, descriptor);
-
-    return async (ctx: DefaultHttpServiceContext, count?: number, waitTimeoutMs?: number) => {
-        return ctx.getInputs(type, count, waitTimeoutMs);
+    return {
+        one: async (ctx, waitTimeoutMs) =>{
+            const res = await ctx.readInputs<InputType>(type, 1, 1, waitTimeoutMs);
+            return res?.[0] as InputType;
+        },
+        tryOne: async (ctx, waitTimeoutMs) => {
+            const res = await ctx.readInputs<InputType>(type, 0, 1, waitTimeoutMs);
+            return res?.[0];
+        },
+        many(ctx, minCount, maxCount, waitTimeoutMs) {
+            return ctx.readInputs<InputType>(type, minCount, maxCount ?? minCount, waitTimeoutMs);
+        }
     }
 }
 
