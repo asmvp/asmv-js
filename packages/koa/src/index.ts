@@ -6,3 +6,5 @@
 
 export * from "./lib/Agent";
 export * from "./lib/Service";
+
+export { onEvent, offEvent, onceEvent } from "@asmv/utils";

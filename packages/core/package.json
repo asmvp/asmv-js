@@ -1,6 +1,6 @@
 {
   "name": "@asmv/core",
-  "version": "0.0.1",
+  "version": "0.1.1-draft",
   "description": "Core package for the JS implementation of the ASIMOV protocol (Asynchronous Service Interaction Messaging OVerlay).",
   "keywords": [ "asmv", "asimov", "ai", "rpc", "api" ],
   "type": "commonjs",
@@ -11,5 +11,9 @@
       "email": "jiri@hybek.cz",
       "url": "https://jiri.hybek.cz"
     }
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asmvp/asmv-js"
+  }
 }

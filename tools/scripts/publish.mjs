@@ -7,9 +7,8 @@
  * You might need to authenticate with NPM before running this script.
  */
 
-import { readCachedProjectGraph } from '@nrwl/devkit';
+import devkit from '@nrwl/devkit';
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
 import chalk from 'chalk';
 
 function invariant(condition, message) {
@@ -19,18 +18,11 @@ function invariant(condition, message) {
   }
 }
 
-// Executing publish script: node path/to/publish.mjs {name} --version {version} --tag {tag}
+// Executing publish script: node path/to/publish.mjs {name} --tag {tag} --dry --otp {otp}
 // Default "tag" to "next" so we won't publish the "latest" tag by accident.
-const [, , name, version, tag = 'next'] = process.argv;
+const [, , name, tag = 'next', dryRun = false, otp = ''] = process.argv;
 
-// A simple SemVer validation to validate the version
-const validVersion = /^\d+\.\d+\.\d+(-\w+\.\d+)?/;
-invariant(
-  version && validVersion.test(version),
-  `No version provided or version did not match Semantic Versioning, expected: #.#.#-tag.# or #.#.#, got ${version}.`
-);
-
-const graph = readCachedProjectGraph();
+const graph = devkit.readCachedProjectGraph();
 const project = graph.nodes[name];
 
 invariant(
@@ -46,16 +38,13 @@ invariant(
 
 process.chdir(outputPath);
 
-// Updating the version in "package.json" before publishing
-try {
-  const json = JSON.parse(readFileSync(`package.json`).toString());
-  json.version = version;
-  writeFileSync(`package.json`, JSON.stringify(json, null, 2));
-} catch (e) {
-  console.error(
-    chalk.bold.red(`Error reading package.json file from library build output.`)
-  );
-}
-
 // Execute "npm publish" to publish
-execSync(`npm publish --access public --tag ${tag}`);
+//const publishCommand = `npm publish --access public --tag ${tag}${ dryRun === "true" ? ' --dry-run' : '' }`;
+const publishCommand = [
+  'npm publish',
+  '--access public',
+  `--tag ${tag}`,
+  dryRun === 'true' ? '--dry-run' : '',
+  otp && otp !== "undefined" ? `--otp ${otp}` : '',
+].join(' ');
+execSync(publishCommand);

@@ -11,7 +11,7 @@ import {
     HttpErrors,
     Message} from "@asmv/core";
 import { createEventEmitter, emitEvent, onceEvent } from "@asmv/utils";
-import * as koa from "koa";
+import { DefaultContext } from "koa";
 import Router from "@koa/router";
 import { v4 as uuid_v4 } from "uuid";
 
@@ -31,7 +31,7 @@ export class Agent {
     public readonly routingSchema: AgentRoutingSchema;
     public readonly asmvVersion: string;
     
-    public readonly middlewares: Router.Middleware<koa.DefaultContext>[] = [];
+    public readonly middlewares: Router.Middleware<DefaultContext>[] = [];
 
     private contextManager: ContextManager<ClientContext<Http.Channel>> = new ContextManager<ClientContext<Http.Channel>>();
 
@@ -52,7 +52,7 @@ export class Agent {
      *
      * @param middlewares Middleware functions
      */
-    public use(...middlewares: Router.Middleware<koa.DefaultContext>[]): void {
+    public use(...middlewares: Router.Middleware<DefaultContext>[]): void {
         this.middlewares.push(...middlewares);
     }
 

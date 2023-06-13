@@ -16,7 +16,7 @@ import {
     ServiceUriResolver
 } from "@asmv/core";
 import { createEventEmitter, emitEvent, onceEvent, removeAllEventListeners } from "@asmv/utils";
-import * as koa from "koa";
+import { ParameterizedContext } from "koa";
 import Router from "@koa/router";
 import { v4 as uuid_v4 } from "uuid";
 
@@ -42,7 +42,7 @@ export interface ServiceOptions<ServiceContext extends DefaultHttpServiceContext
 type RouterMiddlewareFromContext<ServiceContext extends DefaultHttpServiceContext> = 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     ServiceContext extends HttpServiceContext<infer _State, infer KoaContext>
-        ? KoaContext extends koa.ParameterizedContext<infer KoaStateT, infer KoaContextT>
+        ? KoaContext extends ParameterizedContext<infer KoaStateT, infer KoaContextT>
             ? Router.Middleware<KoaStateT, KoaContextT>
             : never
         : never;

@@ -17,7 +17,7 @@
     "publish": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "node tools/scripts/publish.mjs koa {args.ver} {args.tag}"
+        "command": "node tools/scripts/publish.mjs koa {args.tag} {args.dry} {args.otp}"
       },
       "dependsOn": ["build"]
     },

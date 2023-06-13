@@ -4,7 +4,7 @@
  * @license Apache-2.0 See the LICENSE.md file distributed with this source code for licensing info.
  */
 
-import * as koa from "koa";
+import { DefaultContext } from "koa";
 import { CommandOptions, ConfigProfileDefinition, Manifest, ServiceContextStatus } from "@asmv/core";
 
 import { DefaultHttpServiceContext, HttpServiceContext } from "./HttpServiceContext";
@@ -24,7 +24,7 @@ export type BaseContextState<Data extends StateData> = {
     stateData: Data;
 }
 
-export type StatefulHttpServiceContext = HttpServiceContext<BaseContextState<StateData>, koa.DefaultContext>;
+export type StatefulHttpServiceContext = HttpServiceContext<BaseContextState<StateData>, DefaultContext>;
 
 export type ConfigProfileGetter<T> = (ctx: DefaultHttpServiceContext) => Promise<T>;
 export type GetInputFunction<T> = {
@@ -174,7 +174,7 @@ export async function finish(ctx: DefaultHttpServiceContext): Promise<void> {
  */
 export function handleState<
     State extends StateData = StateData,
-    ServiceContext extends HttpServiceContext<BaseContextState<State>, koa.DefaultContext> = HttpServiceContext<BaseContextState<State>, koa.DefaultContext>
+    ServiceContext extends HttpServiceContext<BaseContextState<State>, DefaultContext> = HttpServiceContext<BaseContextState<State>, DefaultContext>
 >(name: keyof State, handler: StateHandlerFunction<ServiceContext>): void {
     assertCurrentCommand();
 
@@ -192,7 +192,7 @@ export function handleState<
  */
 export function handleInvoke<
     State extends StateData = StateData,
-    ServiceContext extends HttpServiceContext<BaseContextState<State>, koa.DefaultContext> = HttpServiceContext<BaseContextState<State>, koa.DefaultContext>
+    ServiceContext extends HttpServiceContext<BaseContextState<State>, DefaultContext> = HttpServiceContext<BaseContextState<State>, DefaultContext>
 >(handler: StateHandlerFunction<ServiceContext>): void {
     assertCurrentCommand();
 

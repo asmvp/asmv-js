@@ -5,8 +5,7 @@
  */
 
 import koa from 'koa';
-import { Service, ServiceRoutingSchema, HttpServiceContext, HttpService, StatefulHttpServiceContext, Agent, AgentRoutingSchema } from '@asmv/koa';
-import { onEvent } from "@asmv/utils";
+import { Service, ServiceRoutingSchema, HttpServiceContext, HttpService, StatefulHttpServiceContext, Agent, AgentRoutingSchema, onEvent } from '@asmv/koa';
 import commands from "./commands";
 import { IncomingMessage, Server, ServerResponse } from 'http';
 

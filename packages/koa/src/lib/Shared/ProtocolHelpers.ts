@@ -5,7 +5,7 @@
  */
 
 import { ValidateFunction } from "ajv";
-import * as koa from "koa";
+import { ParameterizedContext, DefaultState, DefaultContext, Next, Context } from "koa";
 import { satisfies, coerce } from "semver";
 import Router from "@koa/router";
 import { HttpErrors, Http, MessageSchema, Message, MessageErrors, MessageTransportError } from "@asmv/core";
@@ -16,8 +16,12 @@ export const supportedSemverVersions = SUPPORTED_ASMV_VERSIONS.join(" || ");
 
 export const messageValidators = MessageSchema.compileValidators();
 
-export type RouterKoaContext = koa.ParameterizedContext<koa.DefaultState, koa.DefaultContext
-    & Router.RouterParamContext<koa.DefaultState, koa.DefaultContext>, unknown>
+export type RouterKoaContext = ParameterizedContext<
+DefaultState, 
+DefaultContext
+    & Router.RouterParamContext<
+    DefaultState, 
+    DefaultContext>, unknown>
     & {
         asmvVersion: string;
         channelInfo: Http.ChannelInfo;
@@ -84,7 +88,7 @@ export function getValidBodyOrThrow<Body>(ctx: RouterKoaContext, validator: Vali
 }
 
 export function checkProtocolVersion(supportedVersions: string[]) {
-    return async (ctx: RouterKoaContext, next: koa.Next): Promise<void> => {
+    return async (ctx: RouterKoaContext, next: Next): Promise<void> => {
         const protocolVersion = coerce(getHttpHeaderOrThrow(ctx, "x-asmv-protocol-version", true));
 
         if (!protocolVersion) {
@@ -103,7 +107,7 @@ export function checkProtocolVersion(supportedVersions: string[]) {
 }
 
 export function parseChannelInfo() {
-    return async (ctx: RouterKoaContext, next: koa.Next): Promise<void> => {
+    return async (ctx: RouterKoaContext, next: Next): Promise<void> => {
         const clientChannelId = getHttpHeaderOrThrow(ctx, "x-asmv-client-channel-id", false) ?? ctx.params["clientChannelId"];
         const serviceChannelId = getHttpHeaderOrThrow(ctx, "x-asmv-service-channel-id", false) ?? ctx.params["serviceChannelId"];
 
@@ -117,7 +121,7 @@ export function parseChannelInfo() {
 }
 
 export function handleProtocolErrors() {
-    return async (ctx: koa.Context, next: koa.Next): Promise<void> => {
+    return async (ctx: Context, next: Next): Promise<void> => {
         try {
             return await next();
         } catch (err) {
